@@ -1,0 +1,17 @@
+# Cache & bytecode
+__pycache__/
+*.pyc
+*.pyo
+.vscode/
+cloudflared.exe
+*.bak
+
+# Non-web C# projects
+QuanLyTacGia/bin/
+QuanLyTacGia/obj/
+QuanLyDiemBichThanh/bin/
+QuanLyDiemBichThanh/obj/
+QuanLyDiemUTT_BanGoc/bin/
+QuanLyDiemUTT_BanGoc/obj/
+QuanLySinhVien/bin/
+QuanLySinhVien/obj/
