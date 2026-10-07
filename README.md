@@ -1,79 +1,135 @@
-# DỰ ÁN WEBSITE QUẢN LÝ BÁN HÀNG QUẦN ÁO (PHP + MYSQL + DOCKER)
-> Học phần: Quy trình và công cụ phát triển phần mềm - UTT
+# HỆ THỐNG WEB ĐĂNG KÝ & QUẢN LÝ LỊCH KHÁM BỆNH PHÒNG KHÁM ĐA KHOA AN NHIÊN (NAM ĐỊNH)
 
-Dự án này được thiết kế và đóng gói bằng Docker nhằm phục vụ thi vấn đáp trực tiếp trên máy. Hệ thống bao gồm website bán hàng cho khách hàng và trang quản trị (Admin Dashboard) để quản lý sản phẩm, danh mục và đơn đặt hàng.
-
----
-
-## I. HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG TRÊN DOCKER
-
-Mở terminal (PowerShell trên Windows hoặc Shell trên Ubuntu) tại thư mục `product_management` chứa dự án và chạy các lệnh sau:
-
-### 1. Khởi chạy các Container (Web server & MySQL)
-```bash
-# Xây dựng lại image và khởi chạy các container chạy ngầm (-d)
-docker compose up --build -d
-```
-*Lưu ý:* Lệnh này sẽ tự động:
-1. Đọc `Dockerfile` và build image cho web server Apache + PHP.
-2. Tải image MySQL 8.0 từ Docker Hub.
-3. Khởi tạo mạng nội bộ (network) liên kết 2 container.
-4. Chạy script `database/init.sql` để tạo các bảng dữ liệu và chèn dữ liệu mẫu lúc container DB được tạo lần đầu.
-
-### 2. Đường dẫn truy cập hệ thống
-*   **Trang cửa hàng (Khách hàng):** [http://localhost:8080](http://localhost:8080)
-*   **Trang quản trị (Admin Dashboard):** [http://localhost:8080/admin](http://localhost:8080/admin)
-    *   *Tài khoản Admin mặc định:* **`bichthanh`**
-    *   *Mật khẩu:* **`123456`**
-
-### 3. Dừng các Container
-Khi thi xong hoặc muốn dừng hệ thống, chạy lệnh:
-```bash
-docker compose down
-```
-*   Dữ liệu trong MySQL sẽ **không bị mất** vì đã được cấu hình lưu bền vững tại Docker Volume có tên `db_data`.
+> **TRƯỜNG ĐẠI HỌC CÔNG NGHỆ GIAO THÔNG VẬN TẢI (UTT)**  
+> **Khoa:** Công nghệ Thông tin  
+> **Học phần:** Đồ án Phát triển Phần mềm  
+> **Giảng viên hướng dẫn:** Cô Phạm Thị Thuận  
+> **Nhóm thực hiện:** Nhóm 12 • Lớp 74DCTT26  
 
 ---
 
-## II. ĐỀ CƯƠNG ÔN TẬP THI VẤN ĐÁP (CÂU HỎI & TRẢ LỜI)
+## 👥 THÀNH VIÊN NHÓM 12
 
-### CHỦ ĐỀ 1: SSH VÀ TRUYỀN FILE
-1.  **Cách SSH vào Server (máy ảo Ubuntu):**
-    *   Lệnh: `ssh <username>@<dia_chi_ip>`
-    *   Ví dụ: `ssh root@192.168.1.50` (sau đó nhập mật khẩu).
-2.  **Cách truyền file lên server:**
-    *   *Cách 1 (FTP - Vsftpd):* Cần cài đặt Vsftpd trên Linux, mở port 21. Sử dụng FileZilla hoặc Bitvise Client kết nối giao thức FTP.
-    *   *Cách 2 (SFTP):* Dựa trực tiếp trên giao thức SSH bảo mật (mặc định mở port 22). Sử dụng lệnh `scp` hoặc dùng Bitvise SFTP client để kéo thả file trực tiếp mà không cần cài thêm FTP server.
+| STT | Họ và Tên | Vai trò thực hiện |
+| :---: | :--- | :--- |
+| **32** | **Nguyễn Ngọc Mỹ** | Lập trình viên Fullstack, kiến trúc backend & API |
+| **07** | **Nguyễn Hồng Đăng** | Thiết kế hệ thống, phân tích cơ sở dữ liệu & biểu đồ UML |
+| **49** | **Vũ Thị Minh Thư** | Thiết kế giao diện (UI/UX), CSS Design System |
+| **57** | **Trần Thị Hồng Xoan** | Kiểm thử chức năng, thiết kế cơ sở dữ liệu MySQL |
+| **46** | **Lưu Thị Bích Thanh** | Kiểm thử hệ thống, tài liệu báo cáo đồ án |
 
-### CHỦ ĐỀ 2: GIT (QUẢN LÝ MÃ NGUỒN)
-1.  **Các lệnh Git cơ bản:**
-    *   `git init`: Khởi tạo kho chứa Git cục bộ (local repository).
-    *   `git status`: Kiểm tra trạng thái thay đổi các file trong thư mục làm việc.
-    *   `git add .`: Thêm toàn bộ các file thay đổi vào khu vực chờ (Staging Area).
-    *   `git commit -m "nội dung"`: Lưu lại ảnh chụp mã nguồn kèm thông điệp mô tả.
-    *   `git push origin <branch>`: Đẩy code từ máy cục bộ lên GitHub/GitLab.
-    *   `git pull origin <branch>`: Kéo code mới nhất từ trên mạng về máy của mình.
-2.  **Cách giải quyết xung đột (Git Conflict):**
-    *   *Nguyên nhân:* Xảy ra khi 2 người cùng sửa chung một dòng code trên cùng một file và push lên Git.
-    *   *Cách xử lý:*
-        1. Chạy lệnh `git pull` để tải code mới nhất về, Git sẽ báo lỗi Conflict và chèn các ký hiệu `<<<<<<<`, `=======`, `>>>>>>>` vào dòng bị xung đột trong file.
-        2. Mở file bị conflict bằng VS Code. VS Code sẽ hiển thị các lựa chọn: "Accept Current Change" (Giữ code của mình), "Accept Incoming Change" (Lấy code của người khác), hoặc "Accept Both Changes" (Lấy cả hai).
-        3. Chọn cách giải quyết phù hợp, lưu file lại.
-        4. Chạy `git add <tên_file>`, `git commit -m "Fix conflict"`, sau đó `git push` lên lại GitHub.
+---
 
-### CHỦ ĐỀ 3: DOCKER (CONTAINERIZATION)
-1.  **Phân biệt Container (Docker) và Máy ảo (VM):**
-    *   *Máy ảo (VM):* Chạy trên một bộ giám sát ảo (Hypervisor). Mỗi VM sở hữu một Hệ điều hành (OS) khách riêng biệt hoàn chỉnh. Do đó, VM rất nặng, khởi động lâu (vài phút) và tốn tài nguyên phần cứng (RAM, CPU).
-    *   *Container (Docker):* Chia sẻ chung nhân hệ điều hành (Kernel OS) của máy chủ vật lý, chỉ cô lập tài nguyên ở tầng ứng dụng. Do đó, Docker Container siêu nhẹ (chỉ vài chục MB), khởi động tính bằng mili-giây, tốn rất ít tài nguyên.
-2.  **Ý nghĩa của Port Mapping (Ánh xạ cổng):**
-    *   Trong file `docker-compose.yml`, cấu hình `ports: - "8080:80"` nghĩa là ánh xạ cổng `8080` của máy thật (Host) vào cổng `80` của Apache trong container. Khi ta truy cập `http://localhost:8080` từ máy thật, Docker sẽ chuyển hướng request đó vào cổng `80` bên trong container để xử lý.
-3.  **Ý nghĩa của Volume (Gắn ổ đĩa bền vững):**
-    *   Mặc định, dữ liệu sinh ra trong container (như cơ sở dữ liệu MySQL) sẽ biến mất hoàn toàn khi container bị xóa (`docker compose down` hoặc xóa container).
-    *   Gắn volume `db_data:/var/lib/mysql` giúp liên kết thư mục chứa dữ liệu của MySQL trong container ra một phân vùng ổ đĩa trên máy thật. Khi container bị tắt hoặc xóa đi, dữ liệu cơ sở dữ liệu vẫn được bảo toàn nguyên vẹn trên máy chủ vật lý.
-4.  **Các lệnh Docker thông dụng:**
-    *   `docker build -t <tên_image> .`: Build một docker image từ Dockerfile.
-    *   `docker run -d -p 8080:80 <tên_image>`: Khởi chạy container chạy ngầm và map port.
-    *   `docker ps`: Hiển thị danh sách các container đang chạy.
-    *   `docker images`: Hiển thị danh sách các Docker Image đang có trên máy.
-    *   `docker exec -it <tên_container> bash`: Truy cập vào terminal (shell) của một container đang chạy.
-    *   `docker logs <tên_container>`: Xem log đầu ra của container (để debug lỗi).
+## 🏥 TỔNG QUAN HỆ THỐNG
+
+Dự án xây dựng nền tảng website phục vụ hoạt động quản lý khám chữa bệnh trực tuyến tại **Phòng khám Đa khoa An Nhiên (Nam Định)** thuộc hệ sinh thái Viện Nghiên cứu & Đào tạo Y Dược Việt – Hàn (VKIM).
+
+### 🌟 Tính năng nổi bật theo 4 phân hệ:
+1. **Dành cho Khách vãng lai & Bệnh nhân:**
+   - Xem thông tin phòng khám, cơ sở vật chất, 8 chuyên khoa kỹ thuật cao.
+   - Danh sách và hồ sơ đội ngũ bác sĩ chuyên khoa Việt Nam.
+   - **Quy trình đặt lịch trực tuyến 3 bước:** Chọn Chuyên khoa $\rightarrow$ Bác sĩ $\rightarrow$ Khung giờ trống (AJAX thời gian thực) $\rightarrow$ Cấp mã phiếu hẹn duy nhất dạng `AN-2026-XXXX`.
+   - **Tra cứu lịch khám & xem Đơn thuốc điện tử:** Tra cứu qua mã phiếu hẹn hoặc số điện thoại, in phiếu khám và đơn thuốc trực tiếp từ trình duyệt (`window.print()`).
+   - Cẩm nang y tế & tin tức sức khỏe.
+   - Gửi phản hồi / liên hệ trực tuyến.
+2. **Cổng Dịch vụ Bệnh nhân (`/benh-nhan`):**
+   - Đăng ký / Đăng nhập tài khoản bệnh nhân.
+   - Theo dõi lịch sử khám bệnh, trạng thái ca khám.
+   - Quản lý kho đơn thuốc điện tử, dặn dò của bác sĩ và ngày tái khám.
+   - Lịch sử hóa đơn viện phí & thanh toán.
+3. **Bàn khám Bác sĩ (`/bac-si`):**
+   - Danh sách bệnh nhân chờ khám trong ngày.
+   - Tiếp đón, nhập chẩn đoán lâm sàng.
+   - **Kê đơn thuốc điện tử:** Chọn tên thuốc, đơn vị, số lượng, hướng dẫn uống, lời dặn bác sĩ, hẹn ngày tái khám.
+   - Xem lịch trực cá nhân trong tuần & gửi yêu cầu xin nghỉ / đổi ca.
+4. **Hệ thống Quản trị Admin (`/admin`):**
+   - Bảng điều khiển (Dashboard) KPI: tổng bệnh nhân, lịch hẹn hôm nay, doanh thu, biểu đồ phân bổ chuyên khoa (Chart.js).
+   - Duyệt và quản lý lịch hẹn khám, hỗ trợ dời lịch khám cho bệnh nhân.
+   - Quản lý phân ca trực bác sĩ (xếp lịch, bật/tắt ca trực).
+   - Quản lý danh mục bác sĩ, chuyên khoa, phòng khám, bài viết, phản hồi khách hàng.
+   - Báo cáo thống kê doanh thu và lượt khám theo khoảng thời gian.
+
+---
+
+## 🛠️ CÔNG NGHỆ SỬ DỤNG
+
+- **Frontend:** HTML5, CSS3 (Modern Medical UI Design System, Flexbox, CSS Grid), JavaScript (Vanilla JS, AJAX Fetch API), Font Awesome 6, Google Fonts (Plus Jakarta Sans, Inter).
+- **Backend:** PHP 8.2 (Mô hình MVC linh hoạt, Prepared Statements PDO, mã hóa bcrypt).
+- **Cơ sở dữ liệu:** MySQL (10 bảng dữ liệu quan hệ, ràng buộc khóa ngoại, hỗ trợ UTF8MB4).
+- **Bảo mật:** Session Authentication, CSRF & XSS Sanitization, SQL Injection Prevention bằng PDO.
+
+---
+
+## 🚀 HƯỚNG DẪN KHỞI CHẠY (1-CLICK)
+
+### Cách 1: Khởi chạy nhanh bằng file tự động (Khuyên dùng)
+1. Đảm bảo MySQL đang chạy (trên cổng 3306, user `root`).
+2. Nhấp đúp chuột vào file: **`run_server.bat`**.
+3. Trình duyệt sẽ tự động mở trang web tại địa chỉ: **`http://localhost:8000`**.
+
+### Cách 2: Khởi chạy bằng XAMPP / Laragon
+1. Đặt thư mục dự án vào `c:\xampp\htdocs\product_management` (hoặc thư mục www của Laragon).
+2. Mở trình duyệt truy cập: **`http://localhost/product_management`**.
+
+### Cách 3: Chia sẻ đường link Online cho bạn bè xem từ xa
+- Giữ file `run_server.bat` đang chạy.
+- Nhấp đúp file: **`chia_se_link_online.bat`** (cửa sổ sẽ tự động sinh link online miễn phí `https://xxxx.trycloudflare.com` gửi cho bạn bè xem trên điện thoại hoặc máy tính ở bất kỳ đâu).
+
+---
+
+## 🔑 TÀI KHOẢN TRUY CẬP DEMO
+
+| Vai trò | Tên đăng nhập | Mật khẩu | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| **Quản trị viên (Admin)** | `admin` | `admin123` | Toàn quyền quản trị hệ thống |
+| **Bác sĩ chuyên khoa** | `bs_minhduc` | `123456` | BS CKI. Nguyễn Minh Đức (Tim mạch) |
+| **Bác sĩ chuyên khoa** | `bs_quanghuy` | `123456` | TS.BS. Lê Quang Huy (Thận nhân tạo) |
+| **Bác sĩ chuyên khoa** | `bs_thanhhang` | `123456` | ThS.BS. Trần Thanh Hằng (Sản khoa) |
+| **Bệnh nhân** | `benhnhan1` | `123456` | Tài khoản bệnh nhân mẫu |
+
+- **Mã phiếu hẹn tra cứu nhanh:** `AN-2026-001` (Đã hoàn thành khám, có đơn thuốc điện tử).
+
+---
+
+## 📁 CẤU TRÚC THƯ MỤC DỰ ÁN
+
+```
+product_management/
+├── admin/                      # Phân hệ quản trị viên
+│   ├── index.php               # Dashboard KPI điều hành
+│   ├── lich-hen.php            # Quản lý & duyệt lịch hẹn
+│   ├── lich-lam-viec.php       # Phân ca trực bác sĩ
+│   ├── bac-si.php              # Quản lý bác sĩ
+│   ├── chuyen-khoa.php         # Quản lý chuyên khoa
+│   └── ...
+├── bac-si/                     # Phân hệ Bác sĩ
+│   ├── index.php               # Hàng chờ bệnh nhân
+│   ├── kham-benh.php           # Thăm khám & kê đơn thuốc điện tử
+│   ├── lich-truc.php           # Xem ca trực & xin đổi ca
+│   └── ...
+├── benh-nhan/                  # Cổng thông tin Bệnh nhân
+│   ├── index.php               # Lịch sử khám bệnh
+│   ├── don-thuoc.php           # Danh sách đơn thuốc điện tử
+│   └── ...
+├── api/                        # API Endpoint AJAX
+│   ├── get_doctors_by_specialty.php
+│   └── get_schedules_by_doctor.php
+├── assets/
+│   ├── css/style.css           # Toàn bộ CSS giao diện y tế cao cấp
+│   ├── js/main.js              # JavaScript tương tác & AJAX
+│   └── images/                 # Logo, ảnh bác sĩ Việt Nam, chuyên khoa
+├── database/
+│   ├── phongkham_annhien.sql   # File export CSDL MySQL hoàn chỉnh
+│   └── seed_data.php           # Script gieo dữ liệu mẫu tự động
+├── includes/                   # Các file dùng chung (db, header, footer, auth)
+├── index.php                   # Trang chủ phòng khám
+├── dat-lich.php                # Wizard đặt lịch khám trực tuyến 3 bước
+├── tra-cuu.php                 # Tra cứu phiếu hẹn & đơn thuốc
+├── run_server.bat              # Script chạy server 1-click (hỗ trợ LAN Wi-Fi)
+├── chia_se_link_online.bat     # Script chia sẻ link online toàn quốc
+└── README.md                   # Hướng dẫn đồ án Nhóm 12 (UTT)
+```
+
+---
+© 2026 **Nhóm 12 - Lớp 74DCTT26 - Trường Đại Học Công Nghệ Giao Thông Vận Tải (UTT)**.
+Mã nguồn phục vụ đồ án môn học.
