@@ -151,6 +151,15 @@ $flash = getFlashMessage();
                                 <p style="font-size:14px;color:#334155;margin-top:4px;"><?= nl2br(htmlspecialchars($app['symptom_description'])) ?></p>
                             </div>
 
+                            <?php if (!empty($app['doctor_reminder'])): ?>
+                                <div style="background:#FEF3C7;border:1px solid #FCD34D;border-left:4px solid #D97706;padding:14px;border-radius:8px;margin-bottom:20px;">
+                                    <strong style="font-size:14px;color:#92400E;display:flex;align-items:center;gap:8px;">
+                                        <i class="fa-solid fa-bell"></i> Lời nhắc nhở & Dặn dò từ Bác sĩ:
+                                    </strong>
+                                    <p style="font-size:14px;color:#78350F;margin-top:6px;line-height:1.5;"><?= nl2br(htmlspecialchars($app['doctor_reminder'])) ?></p>
+                                </div>
+                            <?php endif; ?>
+
                             <!-- NÚT HÀNH ĐỘNG CHO PHIẾU HẸN -->
                             <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #E2E8F0;padding-top:16px;flex-wrap:wrap;gap:12px;">
                                 <div style="display:flex;gap:10px;">

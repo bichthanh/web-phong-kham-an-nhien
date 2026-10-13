@@ -31,7 +31,7 @@ $existingMedicines = $prescription ? json_decode($prescription['medicine_list'],
 
 $error_msg = null;
 
-// XỬ LÝ LƯU ĐƠN THUỐC & HOÀN TẤT CA KHÁM
+// XỬ LÝ LƯU ĐƠN THUỐC & HOÀN TẤT CA KHÁM TRÊN WEB
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_prescription') {
     $diagnosis = sanitizeInput($_POST['diagnosis'] ?? '');
     $doctorNotes = sanitizeInput($_POST['doctor_notes'] ?? '');
@@ -75,9 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $stmtI->execute([$appId, $diagnosis, $medJson, $doctorNotes, $reExamDate]);
             }
 
-            // Chuyển trạng thái lịch hẹn sang COMPLETED
-            $stmtC = $pdo->prepare("UPDATE appointments SET status = 'COMPLETED' WHERE id = ?");
-            $stmtC->execute([$appId]);
+            // Chuyển trạng thái lịch hẹn sang COMPLETED và cập nhật lời dặn dò của bác sĩ
+            $stmtC = $pdo->prepare("UPDATE appointments SET status = 'COMPLETED', doctor_reminder = ? WHERE id = ?");
+            $stmtC->execute([$doctorNotes, $appId]);
 
             $pdo->commit();
             setFlashMessage('success', "Đã hoàn tất ca khám và lưu đơn thuốc điện tử cho bệnh nhân {$appointment['patient_name']} thành công!");
@@ -91,16 +91,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 ?>
 
-<div class="page-header">
+<div class="page-header" style="background:#FFF;padding:20px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:24px;">
     <div>
-        <h2><i class="fa-solid fa-stethoscope" style="color:var(--primary);"></i> Thăm Khám & Kê Đơn Điện Tử</h2>
-        <p>Bệnh nhân: <strong><?= htmlspecialchars($appointment['patient_name']) ?></strong> • Mã phiếu: <strong><?= htmlspecialchars($appointment['appointment_code']) ?></strong></p>
+        <h2 style="font-size:22px;color:#0F172A;display:flex;align-items:center;gap:10px;">
+            <i class="fa-solid fa-stethoscope" style="color:var(--primary);"></i> 
+            Buồng Khám Bệnh & Kê Đơn Thuốc Điện Tử
+        </h2>
+        <p style="color:#64748B;margin-top:4px;font-size:14px;">
+            Bệnh nhân: <strong style="color:#0F172A;"><?= htmlspecialchars($appointment['patient_name']) ?></strong> • Mã phiếu: <span class="badge badge-info"><?= htmlspecialchars($appointment['appointment_code']) ?></span>
+        </p>
     </div>
-    <div style="display:flex;gap:10px;">
-        <a href="index.php" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> Về danh sách</a>
-        <a href="ho-so-benh-nhan.php?phone=<?= urlencode($appointment['patient_phone']) ?>" target="_blank" class="btn btn-outline-primary">
-            <i class="fa-solid fa-clock-rotate-left"></i> Xem lịch sử bệnh án cũ
-        </a>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="index.php" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> Về danh sách bệnh nhân</a>
+        <?php if ($appointment['status'] === 'COMPLETED'): ?>
+            <button type="button" onclick="window.print()" class="btn btn-primary">
+                <i class="fa-solid fa-print"></i> In Đơn Thuốc
+            </button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -114,61 +121,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <!-- THÔNG TIN BỆNH NHÂN ĐANG KHÁM -->
 <div class="card" style="margin-bottom:24px;border-left:4px solid var(--primary);">
     <div class="card-body" style="padding:20px;">
-        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
             <div>
-                <span style="font-size:12px;color:#64748B;display:block;">Họ và tên:</span>
+                <span style="font-size:12px;color:#64748B;display:block;">Họ và tên bệnh nhân:</span>
                 <strong style="font-size:16px;color:#0F172A;"><?= htmlspecialchars($appointment['patient_name']) ?></strong>
             </div>
             <div>
                 <span style="font-size:12px;color:#64748B;display:block;">Giới tính / Ngày sinh:</span>
-                <span style="font-size:14px;"><?= htmlspecialchars($appointment['patient_gender']) ?> • <?= $appointment['patient_dob'] ? formatDate($appointment['patient_dob']) : 'Chưa rõ' ?></span>
+                <span style="font-size:14px;color:#0F172A;"><?= htmlspecialchars($appointment['patient_gender']) ?> • <?= $appointment['patient_dob'] ? formatDate($appointment['patient_dob']) : 'Chưa rõ ngày sinh' ?></span>
             </div>
             <div>
                 <span style="font-size:12px;color:#64748B;display:block;">Số điện thoại liên hệ:</span>
                 <strong style="font-size:14px;color:#0284C7;"><?= htmlspecialchars($appointment['patient_phone']) ?></strong>
             </div>
             <div>
-                <span style="font-size:12px;color:#64748B;display:block;">Trạng thái hiện tại:</span>
-                <?= getStatusBadge($appointment['status']) ?>
+                <span style="font-size:12px;color:#64748B;display:block;">Khung giờ hẹn khám:</span>
+                <strong style="font-size:14px;color:#0D9488;"><?= formatTime($appointment['appointment_time']) ?> (Ngày <?= formatDate($appointment['appointment_date']) ?>)</strong>
             </div>
         </div>
 
-        <div style="margin-top:14px;padding:12px;background:#F8FAFC;border-radius:6px;font-size:13.5px;">
-            <strong><i class="fa-solid fa-notes-medical" style="color:var(--primary);"></i> Triệu chứng ban đầu người bệnh khai báo:</strong>
-            <p style="margin-top:4px;color:#334155;"><?= nl2br(htmlspecialchars($appointment['symptom_description'])) ?></p>
+        <div style="margin-top:14px;padding:14px;background:#F8FAFC;border-radius:8px;font-size:13.5px;border:1px solid #E2E8F0;">
+            <strong style="color:var(--primary);"><i class="fa-solid fa-notes-medical"></i> Triệu chứng ban đầu người bệnh khai báo:</strong>
+            <p style="margin-top:4px;color:#334155;line-height:1.5;"><?= nl2br(htmlspecialchars($appointment['symptom_description'])) ?></p>
         </div>
     </div>
 </div>
 
 <!-- BIỂU MẪU CHẨN ĐOÁN & KÊ ĐƠN THUỐC -->
 <div class="card">
-    <div class="card-header">
-        <h3><i class="fa-solid fa-file-prescription" style="color:var(--primary);margin-right:8px;"></i> Kết Luận Bệnh Án & Chỉ Định Đơn Thuốc</h3>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="font-size:17px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-file-prescription" style="color:var(--primary);"></i> 
+            Kết Luận Chẩn Đoán & Kê Đơn Thuốc Trực Tuyến
+        </h3>
         <?php if ($appointment['status'] === 'COMPLETED'): ?>
-            <span class="badge badge-success"><i class="fa-solid fa-check-double"></i> Ca khám đã hoàn thành</span>
+            <span class="badge badge-success"><i class="fa-solid fa-check-double"></i> Đã hoàn thành</span>
         <?php endif; ?>
     </div>
+
     <div class="card-body">
         <form method="POST" action="kham-benh.php?id=<?= $appId ?>" id="prescription_form">
             <input type="hidden" name="action" value="save_prescription">
 
-            <!-- 1. CHẨN ĐOÁN TÌNH TRẠNG BỆNH -->
+            <!-- 1. KẾT LUẬN CHẨN ĐOÁN BỆNH -->
             <div class="form-group">
-                <label class="form-label" style="font-size:15px;">
+                <label class="form-label" style="font-size:15px;font-weight:700;color:#0F172A;">
                     1. Kết luận chẩn đoán bệnh của Bác sĩ <span class="required">*</span>
                 </label>
                 <textarea name="diagnosis" class="form-control" rows="2" required 
-                          placeholder="Ví dụ: Tăng huyết áp độ 2 (JNC 7) - Rối loạn lipid máu, theo dõi thiếu máu cơ tim cục bộ..."><?= htmlspecialchars($prescription['diagnosis'] ?? '') ?></textarea>
+                          placeholder="Ví dụ: Tăng huyết áp vô căn độ 1 (JNC 7) - Rối loạn mỡ máu nhẹ, theo dõi tim mạch định kỳ..."><?= htmlspecialchars($prescription['diagnosis'] ?? '') ?></textarea>
             </div>
 
-            <!-- 2. BẢNG KÊ ĐƠN THUỐC ĐỘNG -->
-            <div class="form-group" style="margin-top:24px;">
+            <!-- 2. KHO THUỐC MẪU CHỌN NHANH (QUICK PRESCRIBE TAGS) -->
+            <div style="margin:20px 0;padding:16px;background:#F0FDFA;border:1px dashed #5EEAD4;border-radius:10px;">
+                <label style="font-size:13px;color:#0F766E;font-weight:700;display:block;margin-bottom:8px;">
+                    <i class="fa-solid fa-bolt" style="color:#EAB308;"></i> Bấm chọn nhanh thuốc thường dùng của phòng khám (1-Click thêm vào đơn):
+                </label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Amlodipin 5mg', 'Viên', 30, 'Uống 1 viên sau ăn sáng')">
+                        + Amlodipin 5mg (Huyết áp)
+                    </button>
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Losartan 50mg', 'Viên', 30, 'Uống 1 viên vào 8h sáng')">
+                        + Losartan 50mg (Tim mạch)
+                    </button>
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Omeprazole 20mg', 'Viên', 20, 'Uống 1 viên trước ăn sáng 30 phút')">
+                        + Omeprazole 20mg (Dạ dày)
+                    </button>
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Panadol Extra 500mg', 'Viên', 10, 'Uống 1 viên khi đau đầu, sốt trên 38.5 độ')">
+                        + Panadol Extra (Hạ sốt/Đau đầu)
+                    </button>
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Augmentin 1g', 'Viên', 14, 'Uống 1 viên x 2 lần/ngày sau bữa ăn')">
+                        + Augmentin 1g (Kháng sinh)
+                    </button>
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Berocca viên sủi', 'Viên', 10, 'Hòa tan 1 viên vào 200ml nước, uống buổi sáng')">
+                        + Berocca sủi (Bổ sung vi chất)
+                    </button>
+                    <button type="button" class="btn btn-sm" style="background:#FFF;border:1px solid #99F6E4;color:#0F766E;font-size:12px;font-weight:600;" 
+                            onclick="addQuickMedicine('Ginkgo Biloba 120mg', 'Viên', 30, 'Uống 1 viên x 2 lần/ngày sau ăn')">
+                        + Ginkgo Biloba (Tuần hoàn não)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. BẢNG DANH MỤC THUỐC CHỈ ĐỊNH -->
+            <div class="form-group">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                    <label class="form-label" style="font-size:15px;margin-bottom:0;">
-                        2. Danh mục thuốc chỉ định <span class="required">*</span>
+                    <label class="form-label" style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:0;">
+                        2. Danh mục thuốc kê đơn <span class="required">*</span>
                     </label>
                     <button type="button" class="btn btn-sm btn-outline-primary" id="btn_add_medicine">
-                        <i class="fa-solid fa-plus"></i> Thêm loại thuốc
+                        <i class="fa-solid fa-plus"></i> Thêm dòng thuốc mới
                     </button>
                 </div>
 
@@ -176,10 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <table class="table" id="medicine_table">
                         <thead>
                             <tr style="background:#F1F5F9;">
-                                <th style="width:30%;">Tên thuốc & hàm lượng</th>
-                                <th style="width:15%;">Đơn vị tính</th>
+                                <th style="width:32%;">Tên thuốc & hàm lượng</th>
+                                <th style="width:14%;">Đơn vị</th>
                                 <th style="width:12%;">Số lượng</th>
-                                <th style="width:35%;">Cách dùng & liều uống (sáng/trưa/tối)</th>
+                                <th style="width:34%;">Cách dùng & liều uống (sáng/trưa/tối)</th>
                                 <th style="width:8%;text-align:center;">Xóa</th>
                             </tr>
                         </thead>
@@ -195,11 +243,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <!-- Dòng mặc định 1 -->
                                 <tr>
-                                    <td><input type="text" name="med_name[]" class="form-control" placeholder="Tên thuốc..." required></td>
+                                    <td><input type="text" name="med_name[]" class="form-control" placeholder="Ví dụ: Amlodipin 5mg" required></td>
                                     <td><input type="text" name="med_unit[]" class="form-control" value="Viên"></td>
-                                    <td><input type="number" name="med_quantity[]" class="form-control" value="10" min="1"></td>
+                                    <td><input type="number" name="med_quantity[]" class="form-control" value="30" min="1"></td>
                                     <td><input type="text" name="med_usage[]" class="form-control" placeholder="Uống 1 viên sau ăn sáng"></td>
                                     <td style="text-align:center;"><button type="button" class="btn btn-sm btn-danger remove-med"><i class="fa-solid fa-trash"></i></button></td>
                                 </tr>
@@ -209,16 +256,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
             </div>
 
-            <!-- 3. LỜI DẶN DÒ Y KHOA -->
+            <!-- 4. LỜI DẶN DÒ Y KHOA & NHẮC NHỞ BỆNH NHÂN -->
             <div class="form-group" style="margin-top:24px;">
-                <label class="form-label" style="font-size:15px;">3. Lời dặn dò chế độ sinh hoạt & dinh dưỡng của bác sĩ</label>
+                <label class="form-label" style="font-size:15px;font-weight:700;color:#0F172A;">
+                    3. Lời dặn dò y khoa & Nhắc nhở người bệnh (Sẽ hiển thị cho bệnh nhân xem)
+                </label>
                 <textarea name="doctor_notes" class="form-control" rows="3" 
-                          placeholder="Ví dụ: Ăn nhạt tuyệt đối, uống nhiều nước, tập thể dục nhẹ nhàng 30 phút mỗi ngày..."><?= htmlspecialchars($prescription['doctor_notes'] ?? '') ?></textarea>
+                          placeholder="Ví dụ: Ăn giảm muối, hạn chế dầu mỡ động vật, uống đủ 2 lít nước/ngày, tập thể dục nhẹ nhàng 30 phút mỗi ngày. Tái khám ngay nếu có dấu hiệu đau ngực dữ dội..."><?= htmlspecialchars($prescription['doctor_notes'] ?? ($appointment['doctor_reminder'] ?? '')) ?></textarea>
             </div>
 
-            <!-- 4. HẸN NGÀY TÁI KHÁM (USE CASE EXTEND) -->
+            <!-- 5. HẸN NGÀY TÁI KHÁM -->
             <div class="form-group" style="max-width:320px;margin-top:20px;">
-                <label class="form-label" style="font-size:15px;">4. Hẹn ngày tái khám (nếu có)</label>
+                <label class="form-label" style="font-size:15px;font-weight:700;color:#0F172A;">
+                    4. Hẹn ngày tái khám (nếu cần)
+                </label>
                 <input type="date" name="re_examination_date" class="form-control" 
                        value="<?= htmlspecialchars($prescription['re_examination_date'] ?? '') ?>" min="<?= date('Y-m-d') ?>">
             </div>
@@ -226,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div style="display:flex;justify-content:flex-end;gap:14px;border-top:1px solid #E2E8F0;padding-top:20px;margin-top:30px;">
                 <a href="index.php" class="btn btn-outline">Hủy bỏ</a>
                 <button type="submit" class="btn btn-success btn-lg">
-                    <i class="fa-solid fa-circle-check"></i> Lưu Bệnh Án & Hoàn Tất Ca Khám
+                    <i class="fa-solid fa-circle-check"></i> Lưu Bệnh Án & Ký Đơn Thuốc Điện Tử
                 </button>
             </div>
         </form>
@@ -234,6 +285,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 </div>
 
 <script>
+function addQuickMedicine(name, unit, qty, usage) {
+    const tbody = document.getElementById('medicine_rows');
+    // Nếu dòng đầu tiên đang trống thì điền vào dòng đó
+    const firstRowName = tbody.querySelector('tr:first-child input[name="med_name[]"]');
+    if (firstRowName && !firstRowName.value.trim()) {
+        const tr = tbody.querySelector('tr:first-child');
+        tr.querySelector('input[name="med_name[]"]').value = name;
+        tr.querySelector('input[name="med_unit[]"]').value = unit;
+        tr.querySelector('input[name="med_quantity[]"]').value = qty;
+        tr.querySelector('input[name="med_usage[]"]').value = usage;
+        return;
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" name="med_name[]" class="form-control" value="${name}" required></td>
+        <td><input type="text" name="med_unit[]" class="form-control" value="${unit}"></td>
+        <td><input type="number" name="med_quantity[]" class="form-control" value="${qty}" min="1"></td>
+        <td><input type="text" name="med_usage[]" class="form-control" value="${usage}"></td>
+        <td style="text-align:center;"><button type="button" class="btn btn-sm btn-danger remove-med"><i class="fa-solid fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+    attachRemoveBtn(tr.querySelector('.remove-med'));
+}
+
+function attachRemoveBtn(btn) {
+    btn.addEventListener('click', function () {
+        const tbody = document.getElementById('medicine_rows');
+        if (tbody.querySelectorAll('tr').length > 1) {
+            this.closest('tr').remove();
+        } else {
+            alert('Đơn thuốc phải có ít nhất 1 loại thuốc!');
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const btnAdd = document.getElementById('btn_add_medicine');
     const tbody = document.getElementById('medicine_rows');
@@ -251,16 +338,6 @@ document.addEventListener('DOMContentLoaded', function () {
             tbody.appendChild(tr);
             attachRemoveBtn(tr.querySelector('.remove-med'));
         });
-
-        function attachRemoveBtn(btn) {
-            btn.addEventListener('click', function () {
-                if (tbody.querySelectorAll('tr').length > 1) {
-                    this.closest('tr').remove();
-                } else {
-                    alert('Đơn thuốc phải có ít nhất 1 loại thuốc!');
-                }
-            });
-        }
 
         tbody.querySelectorAll('.remove-med').forEach(btn => attachRemoveBtn(btn));
     }

@@ -1,5 +1,5 @@
 <?php
-$page_title = "Danh sách bệnh nhân khám hôm nay";
+$page_title = "Bàn làm việc Bác sĩ - Xử lý lịch khám & Nhắc nhở";
 $activeNav = 'dashboard';
 require_once __DIR__ . '/../includes/doctor_header.php';
 
@@ -10,8 +10,21 @@ if (!$currentDoctor) {
 $doctorId = $currentDoctor['id'];
 $today = date('Y-m-d');
 $filterDate = sanitizeInput($_GET['date'] ?? $today);
+$viewAll = isset($_GET['view']) && $_GET['view'] === 'all';
 
-// Xử lý chuyển trạng thái "Tiếp nhận vào khám" (CHECKED_IN -> IN_PROGRESS)
+// 1. XỬ LÝ DUYỆT LỊCH HẸN TRÊN WEB (PENDING -> CONFIRMED)
+if (isset($_POST['action']) && $_POST['action'] === 'confirm_appointment') {
+    $appId = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
+    if ($appId) {
+        $stmtConf = $pdo->prepare("UPDATE appointments SET status = 'CONFIRMED' WHERE id = ? AND doctor_id = ?");
+        $stmtConf->execute([$appId, $doctorId]);
+        setFlashMessage('success', "Đã duyệt tiếp nhận lịch hẹn khám của bệnh nhân thành công!");
+        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
+        exit;
+    }
+}
+
+// 2. XỬ LÝ TIẾP NHẬN VÀO BUỒNG KHÁM (-> IN_PROGRESS)
 if (isset($_POST['action']) && $_POST['action'] === 'start_examination') {
     $appId = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
     if ($appId) {
@@ -22,60 +35,121 @@ if (isset($_POST['action']) && $_POST['action'] === 'start_examination') {
     }
 }
 
-// Thống kê các ca khám trong ngày
+// 3. XỬ LÝ LƯU LỜI NHẮC NHỞ BỆNH NHÂN TRÊN WEB
+if (isset($_POST['action']) && $_POST['action'] === 'save_reminder') {
+    $appId = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
+    $reminder = sanitizeInput($_POST['doctor_reminder'] ?? '');
+    if ($appId) {
+        $stmtRem = $pdo->prepare("UPDATE appointments SET doctor_reminder = ? WHERE id = ? AND doctor_id = ?");
+        $stmtRem->execute([$reminder, $appId, $doctorId]);
+        setFlashMessage('success', "Đã lưu và gửi lời nhắc nhở tới bệnh nhân thành công!");
+        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
+        exit;
+    }
+}
+
+// 4. XỬ LÝ HỦY LỊCH HẸN TRÊN WEB
+if (isset($_POST['action']) && $_POST['action'] === 'cancel_appointment') {
+    $appId = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
+    $cancelReason = sanitizeInput($_POST['cancel_reason'] ?? 'Bệnh nhân bận lịch / Bác sĩ có ca mổ khẩn cấp');
+    if ($appId) {
+        $stmtSch = $pdo->prepare("SELECT schedule_id FROM appointments WHERE id = ? AND doctor_id = ?");
+        $stmtSch->execute([$appId, $doctorId]);
+        $schId = $stmtSch->fetchColumn();
+
+        $stmtCan = $pdo->prepare("UPDATE appointments SET status = 'CANCELLED', doctor_reminder = CONCAT(COALESCE(doctor_reminder, ''), ' [Lý do hủy: ', ?, ']') WHERE id = ? AND doctor_id = ?");
+        $stmtCan->execute([$cancelReason, $appId, $doctorId]);
+
+        // Giải phóng slot cho ca trực
+        if ($schId) {
+            $pdo->prepare("UPDATE doctor_schedules SET current_booked = GREATEST(current_booked - 1, 0), status = 'AVAILABLE' WHERE id = ?")->execute([$schId]);
+        }
+
+        setFlashMessage('warning', "Đã hủy ca hẹn và giải phóng chỗ trống cho ca trực!");
+        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
+        exit;
+    }
+}
+
+// Thống kê các ca khám
 $stmtStat = $pdo->prepare("SELECT 
     COUNT(*) as total,
-    SUM(CASE WHEN status IN ('CONFIRMED', 'CHECKED_IN') THEN 1 ELSE 0 END) as waiting_count,
+    SUM(CASE WHEN status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN') THEN 1 ELSE 0 END) as waiting_count,
     SUM(CASE WHEN status = 'IN_PROGRESS' THEN 1 ELSE 0 END) as in_progress_count,
     SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_count
     FROM appointments 
-    WHERE doctor_id = ? AND appointment_date = ?");
-$stmtStat->execute([$doctorId, $filterDate]);
+    WHERE doctor_id = ? AND " . ($viewAll ? "status != 'CANCELLED'" : "appointment_date = ?"));
+
+if ($viewAll) {
+    $stmtStat->execute([$doctorId]);
+} else {
+    $stmtStat->execute([$doctorId, $filterDate]);
+}
 $stats = $stmtStat->fetch();
 
-// Lấy danh sách bệnh nhân theo ngày
-$stmtApps = $pdo->prepare("SELECT a.*, ds.session_name 
-                           FROM appointments a
-                           LEFT JOIN doctor_schedules ds ON a.schedule_id = ds.id
-                           WHERE a.doctor_id = ? AND a.appointment_date = ?
-                           ORDER BY a.appointment_time ASC");
-$stmtApps->execute([$doctorId, $filterDate]);
+// Lấy danh sách bệnh nhân
+$sqlApps = "SELECT a.*, ds.session_name 
+            FROM appointments a
+            LEFT JOIN doctor_schedules ds ON a.schedule_id = ds.id
+            WHERE a.doctor_id = ? " . ($viewAll ? "AND a.status != 'CANCELLED'" : "AND a.appointment_date = ?") . "
+            ORDER BY a.appointment_date ASC, a.appointment_time ASC";
+$stmtApps = $pdo->prepare($sqlApps);
+
+if ($viewAll) {
+    $stmtApps->execute([$doctorId]);
+} else {
+    $stmtApps->execute([$doctorId, $filterDate]);
+}
 $appointments = $stmtApps->fetchAll();
 
 $flash = getFlashMessage();
 ?>
 
-<div class="page-header">
+<div class="page-header" style="background:#FFF;padding:20px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:24px;">
     <div>
-        <h2><i class="fa-solid fa-stethoscope" style="color:var(--primary);"></i> Buồng Khám: <?= htmlspecialchars($currentDoctor['clinic_room']) ?></h2>
-        <p>Bác sĩ: <strong><?= htmlspecialchars($currentDoctor['degree']) ?> <?= htmlspecialchars($currentDoctor['full_name']) ?></strong> • Chuyên khoa: <?= htmlspecialchars($currentDoctor['specialty_name']) ?></p>
+        <h2 style="font-size:22px;color:#0F172A;display:flex;align-items:center;gap:10px;">
+            <i class="fa-solid fa-stethoscope" style="color:var(--primary);"></i> 
+            Bàn Khám Bác Sĩ: <?= htmlspecialchars($currentDoctor['clinic_room']) ?>
+        </h2>
+        <p style="color:#64748B;margin-top:4px;font-size:14px;">
+            Bác sĩ phụ trách: <strong style="color:#0F172A;"><?= htmlspecialchars($currentDoctor['degree']) ?> <?= htmlspecialchars($currentDoctor['full_name']) ?></strong> • Chuyên khoa: <span class="badge badge-info"><?= htmlspecialchars($currentDoctor['specialty_name']) ?></span>
+        </p>
     </div>
-    <form method="GET" style="display:flex;align-items:center;gap:10px;">
-        <label style="font-weight:600;font-size:14px;color:#475569;">Chọn ngày khám:</label>
-        <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($filterDate) ?>" onchange="this.form.submit()" style="width:160px;padding:8px 12px;">
-    </form>
+
+    <!-- BỘ LỌC NGÀY VÀ CHẾ ĐỘ XEM -->
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="index.php?date=<?= date('Y-m-d') ?>" class="btn btn-sm <?= (!$viewAll && $filterDate == $today) ? 'btn-primary' : 'btn-outline' ?>">
+            <i class="fa-solid fa-calendar-day"></i> Hôm nay (<?= date('d/m') ?>)
+        </a>
+        <a href="index.php?view=all" class="btn btn-sm <?= $viewAll ? 'btn-primary' : 'btn-outline' ?>">
+            <i class="fa-solid fa-list"></i> Tất cả ca cần khám
+        </a>
+        <form method="GET" style="display:flex;align-items:center;gap:8px;margin:0;">
+            <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($filterDate) ?>" onchange="this.form.submit()" style="width:150px;padding:6px 10px;font-size:13px;">
+        </form>
+    </div>
 </div>
 
 <?php if ($flash): ?>
-    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?>">
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : ($flash['type'] === 'warning' ? 'warning' : 'danger') ?>">
         <i class="fa-solid <?= $flash['type'] === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation' ?>"></i>
         <div><?= htmlspecialchars($flash['message']) ?></div>
     </div>
 <?php endif; ?>
 
-<!-- KPI THỐNG KÊ TRONG NGÀY -->
+<!-- KPI THỐNG KÊ TRÊN WEB -->
 <div class="kpi-grid">
     <div class="kpi-card">
         <div class="kpi-info">
             <h4><?= $stats['total'] ?: 0 ?></h4>
-            <p>Tổng lịch hẹn ngày <?= formatDate($filterDate) ?></p>
+            <p><?= $viewAll ? 'Tổng lịch hẹn khám' : 'Lịch hẹn ngày ' . formatDate($filterDate) ?></p>
         </div>
         <div class="kpi-icon" style="background:#E0F2FE;color:#0284C7;"><i class="fa-solid fa-users"></i></div>
     </div>
     <div class="kpi-card">
         <div class="kpi-info">
             <h4><?= $stats['waiting_count'] ?: 0 ?></h4>
-            <p>Bệnh nhân chờ khám</p>
+            <p>Bệnh nhân chờ duyệt / khám</p>
         </div>
         <div class="kpi-icon" style="background:#FEF3C7;color:#D97706;"><i class="fa-solid fa-user-clock"></i></div>
     </div>
@@ -89,91 +163,149 @@ $flash = getFlashMessage();
     <div class="kpi-card">
         <div class="kpi-info">
             <h4><?= $stats['completed_count'] ?: 0 ?></h4>
-            <p>Ca khám đã hoàn thành</p>
+            <p>Đã khám & kê đơn xong</p>
         </div>
         <div class="kpi-icon" style="background:#D1FAE5;color:#059669;"><i class="fa-solid fa-circle-check"></i></div>
     </div>
 </div>
 
-<!-- BẢNG DANH SÁCH BỆNH NHÂN -->
+<!-- BẢNG DANH SÁCH BỆNH NHÂN & XỬ LÝ LỊCH ĐẶT -->
 <div class="card">
-    <div class="card-header">
-        <h3><i class="fa-solid fa-list-check" style="color:var(--primary);margin-right:8px;"></i> Danh Sách Bệnh Nhân Đặt Lịch Ngày <?= formatDate($filterDate) ?></h3>
-        <span class="badge badge-info"><?= count($appointments) ?> Bệnh nhân</span>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="font-size:17px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-clipboard-list" style="color:var(--primary);"></i> 
+            Danh Sách Bệnh Nhân (<?= count($appointments) ?> bệnh nhân)
+        </h3>
+        <span style="font-size:12.5px;color:#64748B;">
+            <i class="fa-solid fa-shield-heart" style="color:#0D9488;"></i> Quy định: Tối đa 5 bệnh nhân / ca (sáng & chiều)
+        </span>
     </div>
+
     <div class="card-body" style="padding:0;">
         <div class="table-responsive">
             <table class="table">
                 <thead>
-                    <tr>
+                    <tr style="background:#F8FAFC;">
                         <th style="width:40px;">STT</th>
                         <th>Mã Phiếu</th>
                         <th>Bệnh Nhân</th>
-                        <th>SĐT / Email</th>
-                        <th>Giờ Khám / Ca</th>
-                        <th>Triệu Chứng Khai Báo</th>
+                        <th>SĐT Liên Hệ</th>
+                        <th>Thời Gian Khám</th>
+                        <th>Triệu Chứng & Lời Nhắc Bác Sĩ</th>
                         <th>Trạng Thái</th>
-                        <th style="text-align:right;">Thao Tác</th>
+                        <th style="text-align:right;min-width:200px;">Thao Tác Trực Tiếp Trên Web</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($appointments)): ?>
                         <tr>
-                            <td colspan="8" style="text-align:center;padding:40px;color:#94A3B8;">
-                                <i class="fa-regular fa-calendar-xmark fa-2x" style="margin-bottom:8px;display:block;"></i>
-                                Không có bệnh nhân nào đặt lịch khám trong ngày <?= formatDate($filterDate) ?>.
+                            <td colspan="8" style="text-align:center;padding:50px 20px;color:#94A3B8;">
+                                <i class="fa-regular fa-calendar-check fa-3x" style="margin-bottom:12px;display:block;color:#CBD5E1;"></i>
+                                Không có ca khám nào cần xử lý trong thời gian này.
                             </td>
                         </tr>
                     <?php endif; ?>
 
                     <?php $idx = 1; foreach ($appointments as $app): ?>
-                        <tr style="<?= $app['status'] === 'IN_PROGRESS' ? 'background:#F0FDF4;' : '' ?>">
+                        <tr style="<?= $app['status'] === 'IN_PROGRESS' ? 'background:#F0FDF4;' : ($app['status'] === 'PENDING' ? 'background:#FFFBEB;' : '') ?>">
                             <td><?= $idx++ ?></td>
-                            <td><strong style="color:var(--primary-dark);"><?= htmlspecialchars($app['appointment_code']) ?></strong></td>
                             <td>
-                                <strong><?= htmlspecialchars($app['patient_name']) ?></strong>
+                                <strong style="color:var(--primary-dark);font-size:13.5px;"><?= htmlspecialchars($app['appointment_code']) ?></strong>
+                            </td>
+                            <td>
+                                <strong style="font-size:14px;color:#0F172A;"><?= htmlspecialchars($app['patient_name']) ?></strong>
                                 <span style="display:block;font-size:12px;color:#64748B;">
-                                    <?= htmlspecialchars($app['patient_gender']) ?> <?= $app['patient_dob'] ? '• Sinh: ' . formatDate($app['patient_dob']) : '' ?>
+                                    <?= htmlspecialchars($app['patient_gender']) ?> <?= $app['patient_dob'] ? '• ' . formatDate($app['patient_dob']) : '' ?>
                                 </span>
                             </td>
                             <td>
-                                <?= htmlspecialchars($app['patient_phone']) ?>
-                                <?php if ($app['patient_email']): ?>
-                                    <span style="display:block;font-size:11.5px;color:#94A3B8;"><?= htmlspecialchars($app['patient_email']) ?></span>
+                                <a href="tel:<?= htmlspecialchars($app['patient_phone']) ?>" style="font-weight:600;color:#0284C7;">
+                                    <i class="fa-solid fa-phone" style="font-size:11px;"></i> <?= htmlspecialchars($app['patient_phone']) ?>
+                                </a>
+                            </td>
+                            <td>
+                                <strong style="color:#0F172A;display:block;font-size:13.5px;">
+                                    <i class="fa-regular fa-clock" style="color:#0D9488;"></i> <?= formatTime($app['appointment_time']) ?>
+                                </strong>
+                                <span style="font-size:12px;color:#64748B;">
+                                    Ngày: <strong><?= formatDate($app['appointment_date']) ?></strong>
+                                </span>
+                                <span style="display:block;font-size:11px;color:#94A3B8;">
+                                    <?= htmlspecialchars($app['session_name'] ?? '') ?>
+                                </span>
+                            </td>
+                            <td style="max-width:280px;">
+                                <!-- Triệu chứng -->
+                                <div style="font-size:12.5px;color:#334155;line-height:1.4;margin-bottom:6px;">
+                                    <strong>Lý do khám:</strong> <?= htmlspecialchars($app['symptom_description']) ?>
+                                </div>
+
+                                <!-- Lời nhắc nhở của bác sĩ nếu có -->
+                                <?php if (!empty($app['doctor_reminder'])): ?>
+                                    <div style="background:#FEF3C7;border-left:3px solid #D97706;padding:6px 10px;border-radius:4px;font-size:12px;color:#92400E;">
+                                        <strong><i class="fa-solid fa-bell"></i> Lời nhắc bác sĩ:</strong> <?= htmlspecialchars($app['doctor_reminder']) ?>
+                                    </div>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <strong style="color:#0284C7;"><?= formatTime($app['appointment_time']) ?></strong>
-                                <span style="display:block;font-size:12px;color:#64748B;"><?= htmlspecialchars($app['session_name'] ?? '') ?></span>
+                                <?= getStatusBadge($app['status']) ?>
                             </td>
-                            <td style="max-width:240px;font-size:13px;line-height:1.4;">
-                                <?= htmlspecialchars(mb_strimwidth($app['symptom_description'], 0, 75, '...')) ?>
-                            </td>
-                            <td><?= getStatusBadge($app['status']) ?></td>
                             <td style="text-align:right;white-space:nowrap;">
-                                <?php if ($app['status'] === 'IN_PROGRESS'): ?>
-                                    <a href="kham-benh.php?id=<?= $app['id'] ?>" class="btn btn-sm btn-primary">
-                                        <i class="fa-solid fa-stethoscope"></i> Tiếp tục khám
-                                    </a>
-                                <?php elseif (in_array($app['status'], ['CONFIRMED', 'CHECKED_IN'])): ?>
-                                    <form method="POST" style="display:inline;">
-                                        <input type="hidden" name="action" value="start_examination">
-                                        <input type="hidden" name="appointment_id" value="<?= $app['id'] ?>">
-                                        <button type="submit" class="btn btn-sm btn-success">
-                                            <i class="fa-solid fa-door-open"></i> Vào khám ngay
-                                        </button>
-                                    </form>
-                                <?php elseif ($app['status'] === 'COMPLETED'): ?>
-                                    <a href="kham-benh.php?id=<?= $app['id'] ?>" class="btn btn-sm btn-outline-primary" title="Xem đơn thuốc & bệnh án">
-                                        <i class="fa-solid fa-file-prescription"></i> Xem đơn
-                                    </a>
-                                <?php else: ?>
-                                    <span style="font-size:12px;color:#94A3B8;">Chưa sẵn sàng</span>
-                                <?php endif; ?>
+                                <div style="display:inline-flex;gap:6px;align-items:center;">
+                                    
+                                    <!-- NÚT 1: DUYỆT TIẾP NHẬN (Nếu PENDING) -->
+                                    <?php if ($app['status'] === 'PENDING'): ?>
+                                        <form method="POST" style="margin:0;">
+                                            <input type="hidden" name="action" value="confirm_appointment">
+                                            <input type="hidden" name="appointment_id" value="<?= $app['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-info" title="Xác nhận duyệt lịch hẹn">
+                                                <i class="fa-solid fa-check"></i> Duyệt lịch
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
 
-                                <a href="ho-so-benh-nhan.php?phone=<?= urlencode($app['patient_phone']) ?>" class="btn btn-sm btn-outline" title="Lịch sử khám">
-                                    <i class="fa-solid fa-history"></i>
-                                </a>
+                                    <!-- NÚT 2: VÀO KHÁM & KÊ ĐƠN THUỐC -->
+                                    <?php if (in_array($app['status'], ['CONFIRMED', 'CHECKED_IN'])): ?>
+                                        <form method="POST" style="margin:0;">
+                                            <input type="hidden" name="action" value="start_examination">
+                                            <input type="hidden" name="appointment_id" value="<?= $app['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-success" title="Mời bệnh nhân vào buồng khám">
+                                                <i class="fa-solid fa-door-open"></i> Vào khám ngay
+                                            </button>
+                                        </form>
+                                    <?php elseif ($app['status'] === 'IN_PROGRESS'): ?>
+                                        <a href="kham-benh.php?id=<?= $app['id'] ?>" class="btn btn-sm btn-primary" style="animation:pulse 2s infinite;">
+                                            <i class="fa-solid fa-stethoscope"></i> Tiếp tục kê thuốc
+                                        </a>
+                                    <?php elseif ($app['status'] === 'COMPLETED'): ?>
+                                        <a href="kham-benh.php?id=<?= $app['id'] ?>" class="btn btn-sm btn-outline-primary" title="Xem lại đơn thuốc đã kê">
+                                            <i class="fa-solid fa-file-prescription"></i> Xem đơn thuốc
+                                        </a>
+                                    <?php endif; ?>
+
+                                    <!-- NÚT 3: NHẮC NHỞ BỆNH NHÂN TRÊN WEB (MODAL) -->
+                                    <?php if ($app['status'] !== 'CANCELLED'): ?>
+                                        <button type="button" class="btn btn-sm btn-warning btn-open-reminder" 
+                                                data-id="<?= $app['id'] ?>" 
+                                                data-code="<?= htmlspecialchars($app['appointment_code']) ?>"
+                                                data-name="<?= htmlspecialchars($app['patient_name']) ?>"
+                                                data-reminder="<?= htmlspecialchars($app['doctor_reminder'] ?? '') ?>"
+                                                title="Gửi lời nhắc nhở cho bệnh nhân trên web">
+                                            <i class="fa-solid fa-bell"></i> Nhắc nhở
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <!-- NÚT 4: HỦY CA NẾU CẦN -->
+                                    <?php if (in_array($app['status'], ['PENDING', 'CONFIRMED'])): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-open-cancel"
+                                                data-id="<?= $app['id'] ?>"
+                                                data-name="<?= htmlspecialchars($app['patient_name']) ?>"
+                                                title="Hủy ca hẹn">
+                                            <i class="fa-solid fa-xmark"></i>
+                                        </button>
+                                    <?php endif; ?>
+
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -182,5 +314,113 @@ $flash = getFlashMessage();
         </div>
     </div>
 </div>
+
+<!-- MODAL GỬI LỜI NHẮC NHỞ CHO BỆNH NHÂN TRÊN WEB -->
+<div id="reminder_modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#FFF;border-radius:12px;max-width:520px;width:90%;padding:25px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h4 style="margin:0;font-size:18px;color:#0F172A;display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-bell" style="color:#EAB308;"></i> Gửi Lời Nhắc Nhở Cho Bệnh Nhân
+            </h4>
+            <button type="button" onclick="closeReminderModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8;">&times;</button>
+        </div>
+
+        <p style="font-size:13.5px;color:#64748B;margin-bottom:14px;">
+            Bệnh nhân: <strong id="modal_patient_name" style="color:#0F172A;"></strong> • Mã: <span id="modal_app_code" class="badge badge-info"></span>
+        </p>
+
+        <form method="POST" action="index.php">
+            <input type="hidden" name="action" value="save_reminder">
+            <input type="hidden" name="appointment_id" id="modal_app_id" value="">
+
+            <div class="form-group">
+                <label class="form-label">Nội dung lời nhắc nhở của bác sĩ: <span class="required">*</span></label>
+                <textarea name="doctor_reminder" id="modal_reminder_text" class="form-control" rows="4" required
+                          placeholder="Ví dụ: Bệnh nhân vui lòng nhịn ăn sáng từ 22h tối hôm trước để lấy máu xét nghiệm đường huyết và mỡ máu. Có mặt trước giờ hẹn 15 phút tại P.101..."></textarea>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="font-size:12px;color:#475569;font-weight:600;display:block;margin-bottom:6px;">Gợi ý mẫu nhắc nhở nhanh:</label>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    <button type="button" class="btn btn-sm btn-outline" onclick="fillReminder('Vui lòng nhịn ăn sáng trước khi đến để làm xét nghiệm máu chính xác.')">Nhịn ăn sáng</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="fillReminder('Mang theo các kết quả xét nghiệm, đơn thuốc cũ và thẻ BHYT.')">Mang đơn thuốc cũ</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="fillReminder('Có mặt trước 15 phút tại quầy lễ tân tầng 1 để đo huyết áp ban đầu.')">Đến sớm 15 phút</button>
+                </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px;">
+                <button type="button" class="btn btn-outline" onclick="closeReminderModal()">Hủy</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i> Lưu & Gửi Nhắc Nhở
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL HỦY CA HẸN -->
+<div id="cancel_modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#FFF;border-radius:12px;max-width:460px;width:90%;padding:25px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+        <h4 style="margin:0 0 12px 0;font-size:18px;color:#DC2626;display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Xác Nhận Hủy Ca Hẹn Khám
+        </h4>
+        <p style="font-size:13.5px;color:#64748B;margin-bottom:14px;">
+            Bạn có chắc chắn muốn hủy ca hẹn của bệnh nhân <strong id="cancel_patient_name" style="color:#0F172A;"></strong>? Chỗ trống này sẽ được hoàn lại cho ca trực.
+        </p>
+
+        <form method="POST" action="index.php">
+            <input type="hidden" name="action" value="cancel_appointment">
+            <input type="hidden" name="appointment_id" id="cancel_app_id" value="">
+
+            <div class="form-group">
+                <label class="form-label">Lý do hủy ca hẹn:</label>
+                <input type="text" name="cancel_reason" class="form-control" value="Bệnh nhân báo bận không đến" required>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px;">
+                <button type="button" class="btn btn-outline" onclick="closeCancelModal()">Không hủy</button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fa-solid fa-trash"></i> Xác Nhận Hủy
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function closeReminderModal() {
+    document.getElementById('reminder_modal').style.display = 'none';
+}
+
+function fillReminder(text) {
+    document.getElementById('modal_reminder_text').value = text;
+}
+
+function closeCancelModal() {
+    document.getElementById('cancel_modal').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Xử lý mở Modal nhắc nhở
+    document.querySelectorAll('.btn-open-reminder').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('modal_app_id').value = this.getAttribute('data-id');
+            document.getElementById('modal_app_code').innerText = this.getAttribute('data-code');
+            document.getElementById('modal_patient_name').innerText = this.getAttribute('data-name');
+            document.getElementById('modal_reminder_text').value = this.getAttribute('data-reminder') || '';
+            document.getElementById('reminder_modal').style.display = 'flex';
+        });
+    });
+
+    // Xử lý mở Modal hủy ca
+    document.querySelectorAll('.btn-open-cancel').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('cancel_app_id').value = this.getAttribute('data-id');
+            document.getElementById('cancel_patient_name').innerText = this.getAttribute('data-name');
+            document.getElementById('cancel_modal').style.display = 'flex';
+        });
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../includes/doctor_footer.php'; ?>

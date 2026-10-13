@@ -40,14 +40,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Kiểm tra lại ca khám còn chỗ không
+            // 1. Kiểm tra lại ca khám còn chỗ không (Quy định nghiêm ngặt: tối đa 5 người/ca)
             $stmtCheck = $pdo->prepare("SELECT * FROM doctor_schedules WHERE id = ? FOR UPDATE");
             $stmtCheck->execute([$scheduleId]);
             $schedule = $stmtCheck->fetch();
 
-            if (!$schedule || $schedule['status'] === 'OFF' || $schedule['current_booked'] >= $schedule['max_patients']) {
+            // Đếm số lượng thực tế đã đăng ký trong ca này (không tính ca đã hủy)
+            $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM appointments WHERE schedule_id = ? AND status != 'CANCELLED'");
+            $stmtCount->execute([$scheduleId]);
+            $currentBooked = (int)$stmtCount->fetchColumn();
+
+            if (!$schedule || $schedule['status'] === 'OFF' || $currentBooked >= 5) {
                 $pdo->rollBack();
-                $error_msg = "Rất tiếc, khung giờ khám này vừa hết chỗ hoặc đã bị hủy. Vui lòng chọn ca khám khác!";
+                $error_msg = "Rất tiếc! Ca khám bạn chọn đã đủ 5 người (KÍN LỊCH). Vui lòng chọn ca khác hoặc đặt ngày khác!";
             } else {
                 // 2. Lấy thông tin giá khám của bác sĩ
                 $stmtDoc = $pdo->prepare("SELECT consultation_fee FROM doctors WHERE id = ?");
@@ -73,10 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $appointmentDate, $appointmentTime, $symptom, $paymentMethod, $consultFee
                 ]);
 
-                // 5. Cập nhật số lượng đã đặt của ca trực
-                $newBooked = $schedule['current_booked'] + 1;
-                $newStatus = ($newBooked >= $schedule['max_patients']) ? 'FULL' : 'AVAILABLE';
-                $stmtUpd = $pdo->prepare("UPDATE doctor_schedules SET current_booked = ?, status = ? WHERE id = ?");
+                // 5. Cập nhật số lượng đã đặt của ca trực (Max 5 người)
+                $newBooked = $currentBooked + 1;
+                $newStatus = ($newBooked >= 5) ? 'FULL' : 'AVAILABLE';
+                $stmtUpd = $pdo->prepare("UPDATE doctor_schedules SET current_booked = ?, max_patients = 5, status = ? WHERE id = ?");
                 $stmtUpd->execute([$newBooked, $newStatus, $scheduleId]);
 
                 $pdo->commit();

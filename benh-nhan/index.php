@@ -96,6 +96,11 @@ $flash = getFlashMessage();
                             <td>
                                 <strong><?= htmlspecialchars($a['doctor_degree']) ?> <?= htmlspecialchars($a['doctor_name']) ?></strong>
                                 <span style="display:block;font-size:12px;color:#64748B;"><?= htmlspecialchars($a['specialty_name']) ?></span>
+                                <?php if (!empty($a['doctor_reminder'])): ?>
+                                    <div style="margin-top:6px;padding:6px 8px;background:#FEF3C7;border-left:3px solid #D97706;border-radius:4px;font-size:11.5px;color:#92400E;line-height:1.4;">
+                                        <strong><i class="fa-solid fa-bell"></i> Lời nhắc bác sĩ:</strong> <?= htmlspecialchars($a['doctor_reminder']) ?>
+                                    </div>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <strong style="color:#0284C7;"><?= formatDate($a['appointment_date']) ?></strong>
