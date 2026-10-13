@@ -90,8 +90,8 @@ $flash = getFlashMessage();
                     </button>
                 </form>
                 <div style="margin-top:12px;font-size:13px;color:#64748B;">
-                    <i class="fa-solid fa-lightbulb" style="color:var(--warning);"></i> 
-                    Gợi ý mã kiểm thử mẫu: <code>AN-2026-001</code> (Đã hoàn thành, có đơn thuốc), <code>AN-2026-002</code>, <code>0988776655</code>
+                    <i class="fa-solid fa-circle-info" style="color:var(--primary);"></i> 
+                    Ví dụ tra cứu: Bạn có thể nhập mã phiếu hẹn như <code>AN-2026-001</code> hoặc số điện thoại người khám.
                 </div>
             </div>
         </div>

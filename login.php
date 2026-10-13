@@ -141,50 +141,18 @@ $flash = getFlashMessage();
         <?php endif; ?>
 
         <!-- KHUNG ĐĂNG NHẬP CHÍNH -->
-        <div class="card" style="padding:32px;box-shadow:var(--shadow-lg);">
-            <div style="text-align:center;margin-bottom:24px;">
-                <img src="<?= BASE_URL ?>/assets/images/logo.png" alt="Phòng Khám An Nhiên" style="height:60px;width:60px;border-radius:50%;object-fit:cover;box-shadow:0 4px 12px rgba(13,148,136,0.25);margin:0 auto 10px;display:block;">
+        <div class="card" style="padding:36px;box-shadow:var(--shadow-lg);">
+            <div style="text-align:center;margin-bottom:28px;">
+                <img src="<?= BASE_URL ?>/assets/images/logo.png" alt="Phòng Khám An Nhiên" style="height:64px;width:64px;border-radius:50%;object-fit:cover;box-shadow:0 4px 12px rgba(13,148,136,0.25);margin:0 auto 12px;display:block;">
                 <h3 style="font-size:22px;color:#0F172A;font-weight:700;">Đăng Nhập Tài Khoản</h3>
-                <p style="font-size:13.5px;color:#64748B;margin-top:4px;">Nhập thông tin bên dưới hoặc bấm nút Đăng nhập nhanh để thử nghiệm</p>
-            </div>
-
-            <!-- 1-CLICK DEMO LOGIN (CỰC KỲ TIỆN CHO BÁO CÁO ĐỒ ÁN) -->
-            <div style="margin-bottom:24px;padding:16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;">
-                <label style="font-size:12.5px;color:#475569;font-weight:700;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
-                    <i class="fa-solid fa-bolt" style="color:#EAB308;"></i> 1-Click Đăng nhập nhanh (Dành cho Demo):
-                </label>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-                    <form method="POST" action="login.php" style="margin:0;">
-                        <input type="hidden" name="quick_role" value="doctor">
-                        <button type="submit" class="btn btn-sm" style="width:100%;background:#0D9488;color:#FFF;padding:8px 4px;font-size:12px;font-weight:600;border:none;">
-                            <i class="fa-solid fa-user-doctor"></i> Bác Sĩ
-                        </button>
-                    </form>
-                    <form method="POST" action="login.php" style="margin:0;">
-                        <input type="hidden" name="quick_role" value="admin">
-                        <button type="submit" class="btn btn-sm" style="width:100%;background:#0F172A;color:#FFF;padding:8px 4px;font-size:12px;font-weight:600;border:none;">
-                            <i class="fa-solid fa-shield-halved"></i> Admin
-                        </button>
-                    </form>
-                    <form method="POST" action="login.php" style="margin:0;">
-                        <input type="hidden" name="quick_role" value="patient">
-                        <button type="submit" class="btn btn-sm" style="width:100%;background:#0284C7;color:#FFF;padding:8px 4px;font-size:12px;font-weight:600;border:none;">
-                            <i class="fa-solid fa-user"></i> Bệnh Nhân
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <div style="position:relative;text-align:center;margin:15px 0;">
-                <hr style="border:none;border-top:1px solid #E2E8F0;margin:0;">
-                <span style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#FFF;padding:0 12px;font-size:12px;color:#94A3B8;font-weight:600;">HOẶC ĐĂNG NHẬP TAY</span>
+                <p style="font-size:14px;color:#64748B;margin-top:4px;">Vui lòng nhập thông tin tài khoản của bạn để tiếp tục</p>
             </div>
 
             <form action="login.php" method="POST" id="main_login_form">
                 <div class="form-group">
                     <label class="form-label">Tên đăng nhập / Email / SĐT <span class="required">*</span></label>
                     <div style="position:relative;">
-                        <input type="text" name="username" id="login_username" class="form-control" required placeholder="Nhập username, email hoặc SĐT..." style="padding-left:38px;" autofocus>
+                        <input type="text" name="username" id="login_username" class="form-control" required placeholder="Nhập tên đăng nhập, email hoặc SĐT..." style="padding-left:38px;" autofocus>
                         <i class="fa-solid fa-user" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94A3B8;"></i>
                     </div>
                 </div>
@@ -202,26 +170,13 @@ $flash = getFlashMessage();
                     </div>
                 </div>
 
-                <button type="submit" id="btn_submit_login" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px;font-weight:700;margin-top:12px;">
+                <button type="submit" id="btn_submit_login" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px;font-weight:700;margin-top:14px;">
                     <i class="fa-solid fa-right-to-bracket"></i> Đăng Nhập
                 </button>
             </form>
 
-            <div style="text-align:center;margin-top:20px;font-size:14px;color:#64748B;">
+            <div style="text-align:center;margin-top:24px;font-size:14px;color:#64748B;">
                 Chưa có tài khoản bệnh nhân? <a href="<?= BASE_URL ?>/register.php" style="font-weight:700;color:var(--primary);">Đăng ký ngay tại đây</a>
-            </div>
-
-            <!-- GỢI Ý CHI TIẾT TÀI KHOẢN MẪU -->
-            <div style="margin-top:24px;padding:14px;background:#F1F5F9;border-radius:8px;font-size:12px;color:#475569;">
-                <div style="font-weight:700;color:#0F172A;margin-bottom:6px;">
-                    <i class="fa-solid fa-circle-info"></i> Danh sách tài khoản thử nghiệm:
-                </div>
-                <div style="display:flex;flex-direction:column;gap:3px;">
-                    <div>• <strong>Bác sĩ CKI. Nguyễn Minh Đức:</strong> <code>bs_minhduc</code> / <code>123456</code></div>
-                    <div>• <strong>Bác sĩ ThS. Trần Thanh Hằng:</strong> <code>bs_thanhhang</code> / <code>123456</code></div>
-                    <div>• <strong>Quản trị viên:</strong> <code>admin</code> / <code>admin123</code></div>
-                    <div>• <strong>Bệnh nhân mẫu:</strong> <code>benhnhan1</code> / <code>123456</code></div>
-                </div>
             </div>
         </div>
 
