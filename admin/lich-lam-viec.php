@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $session = sanitizeInput($_POST['session_name'] ?? 'Ca Sáng');
         $startTime = sanitizeInput($_POST['start_time'] ?? '07:30:00');
         $endTime = sanitizeInput($_POST['end_time'] ?? '11:30:00');
-        $maxPatients = (int)($_POST['max_patients'] ?? 15);
+        $maxPatients = (int)($_POST['max_patients'] ?? 8);
 
         if ($docId && $workDate) {
             // Kiểm tra trùng ca
@@ -294,7 +294,7 @@ $flash = getFlashMessage();
 
                 <div class="form-group">
                     <label class="form-label">Số lượng bệnh nhân tiếp nhận tối đa:</label>
-                    <input type="number" name="max_patients" class="form-control" value="15" min="1" max="50" required>
+                    <input type="number" name="max_patients" class="form-control" value="8" min="1" max="50" required>
                 </div>
 
                 <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:20px;">

@@ -40,52 +40,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Kiểm tra lại ca khám còn chỗ không (Quy định nghiêm ngặt: tối đa 5 người/ca)
+            // 1. Kiểm tra lại ca khám còn chỗ không (Quy định: tối đa 8 người/ca, tối đa 2 người/khung giờ)
             $stmtCheck = $pdo->prepare("SELECT * FROM doctor_schedules WHERE id = ? FOR UPDATE");
             $stmtCheck->execute([$scheduleId]);
             $schedule = $stmtCheck->fetch();
 
-            // Đếm số lượng thực tế đã đăng ký trong ca này (không tính ca đã hủy)
-            $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM appointments WHERE schedule_id = ? AND status != 'CANCELLED'");
-            $stmtCount->execute([$scheduleId]);
-            $currentBooked = (int)$stmtCount->fetchColumn();
-
-            if (!$schedule || $schedule['status'] === 'OFF' || $currentBooked >= 5) {
+            if (!$schedule || $schedule['status'] === 'OFF') {
                 $pdo->rollBack();
-                $error_msg = "Rất tiếc! Ca khám bạn chọn đã đủ 5 người (KÍN LỊCH). Vui lòng chọn ca khác hoặc đặt ngày khác!";
+                $error_msg = "Ca khám bạn chọn hiện không tiếp nhận bệnh nhân. Vui lòng chọn ca khác!";
             } else {
-                // 2. Lấy thông tin giá khám của bác sĩ
-                $stmtDoc = $pdo->prepare("SELECT consultation_fee FROM doctors WHERE id = ?");
-                $stmtDoc->execute([$doctorId]);
-                $consultFee = $stmtDoc->fetchColumn() ?: 200000.00;
+                // Đếm tổng số lượng thực tế đã đăng ký trong ca này (không tính ca đã hủy)
+                $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM appointments WHERE schedule_id = ? AND status != 'CANCELLED'");
+                $stmtCount->execute([$scheduleId]);
+                $currentBooked = (int)$stmtCount->fetchColumn();
 
-                // 3. Sinh mã phiếu hẹn duy nhất AN-2026-XXXX
-                $appCode = generateAppointmentCode($pdo);
-                $patientId = isPatient() ? $_SESSION['user_id'] : null;
+                if ($currentBooked >= 8) {
+                    $pdo->rollBack();
+                    $error_msg = "Rất tiếc! Ca khám bạn chọn đã đủ tối đa 8 người (KÍN LỊCH). Vui lòng chọn ca khác hoặc đặt ngày khác!";
+                } else {
+                    // Xác định khung giờ của $appointmentTime để kiểm tra giới hạn tối đa 2 người/khung giờ
+                    $isMorning = (strtotime($schedule['start_time']) < strtotime('12:00:00'));
+                    if ($isMorning) {
+                        $slotsRange = [
+                            ['start' => '07:00:00', 'end' => '07:59:59', 'label' => '07:00 - 08:00'],
+                            ['start' => '08:00:00', 'end' => '08:59:59', 'label' => '08:00 - 09:00'],
+                            ['start' => '09:00:00', 'end' => '09:59:59', 'label' => '09:00 - 10:00'],
+                            ['start' => '10:00:00', 'end' => '11:59:59', 'label' => '10:00 - 11:30']
+                        ];
+                    } else {
+                        $slotsRange = [
+                            ['start' => '13:00:00', 'end' => '14:29:59', 'label' => '13:30 - 14:30'],
+                            ['start' => '14:30:00', 'end' => '15:29:59', 'label' => '14:30 - 15:30'],
+                            ['start' => '15:30:00', 'end' => '16:29:59', 'label' => '15:30 - 16:30'],
+                            ['start' => '16:30:00', 'end' => '17:59:59', 'label' => '16:30 - 17:30']
+                        ];
+                    }
 
-                // 4. Lưu phiếu hẹn vào appointments
-                $sqlInsert = "INSERT INTO appointments (
-                    appointment_code, patient_id, patient_name, patient_phone, patient_email, 
-                    patient_dob, patient_gender, patient_address, doctor_id, schedule_id, 
-                    appointment_date, appointment_time, symptom_description, status, 
-                    payment_status, payment_method, amount
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'UNPAID', ?, ?)";
+                    $matchedSlot = null;
+                    foreach ($slotsRange as $sr) {
+                        if ($appointmentTime >= $sr['start'] && $appointmentTime <= $sr['end']) {
+                            $matchedSlot = $sr;
+                            break;
+                        }
+                    }
 
-                $stmtInsert = $pdo->prepare($sqlInsert);
-                $stmtInsert->execute([
-                    $appCode, $patientId, $patientName, $patientPhone, $patientEmail,
-                    $patientDob, $patientGender, $patientAddress, $doctorId, $scheduleId,
-                    $appointmentDate, $appointmentTime, $symptom, $paymentMethod, $consultFee
-                ]);
+                    // Đếm số người đã đặt trong khung giờ cụ thể này
+                    $slotBooked = 0;
+                    if ($matchedSlot) {
+                        $stmtSlotCount = $pdo->prepare("SELECT COUNT(*) FROM appointments 
+                                                        WHERE schedule_id = ? 
+                                                          AND appointment_time >= ? 
+                                                          AND appointment_time <= ? 
+                                                          AND status != 'CANCELLED'");
+                        $stmtSlotCount->execute([$scheduleId, $matchedSlot['start'], $matchedSlot['end']]);
+                        $slotBooked = (int)$stmtSlotCount->fetchColumn();
+                    }
 
-                // 5. Cập nhật số lượng đã đặt của ca trực (Max 5 người)
-                $newBooked = $currentBooked + 1;
-                $newStatus = ($newBooked >= 5) ? 'FULL' : 'AVAILABLE';
-                $stmtUpd = $pdo->prepare("UPDATE doctor_schedules SET current_booked = ?, max_patients = 5, status = ? WHERE id = ?");
-                $stmtUpd->execute([$newBooked, $newStatus, $scheduleId]);
+                    if ($slotBooked >= 2) {
+                        $pdo->rollBack();
+                        $slotLabel = $matchedSlot ? $matchedSlot['label'] : substr($appointmentTime, 0, 5);
+                        $error_msg = "Rất tiếc! Khung giờ {$slotLabel} đã đủ tối đa 2 người đăng ký. Vui lòng chọn khung giờ khác còn trống!";
+                    } else {
+                        // 2. Lấy thông tin giá khám của bác sĩ
+                        $stmtDoc = $pdo->prepare("SELECT consultation_fee FROM doctors WHERE id = ?");
+                        $stmtDoc->execute([$doctorId]);
+                        $consultFee = $stmtDoc->fetchColumn() ?: 200000.00;
 
-                $pdo->commit();
-                $success_code = $appCode;
+                        // 3. Sinh mã phiếu hẹn duy nhất AN-2026-XXXX
+                        $appCode = generateAppointmentCode($pdo);
+                        $patientId = isPatient() ? $_SESSION['user_id'] : null;
+
+                        // 4. Lưu phiếu hẹn vào appointments
+                        $sqlInsert = "INSERT INTO appointments (
+                            appointment_code, patient_id, patient_name, patient_phone, patient_email, 
+                            patient_dob, patient_gender, patient_address, doctor_id, schedule_id, 
+                            appointment_date, appointment_time, symptom_description, status, 
+                            payment_status, payment_method, amount
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'UNPAID', ?, ?)";
+
+                        $stmtInsert = $pdo->prepare($sqlInsert);
+                        $stmtInsert->execute([
+                            $appCode, $patientId, $patientName, $patientPhone, $patientEmail,
+                            $patientDob, $patientGender, $patientAddress, $doctorId, $scheduleId,
+                            $appointmentDate, $appointmentTime, $symptom, $paymentMethod, $consultFee
+                        ]);
+
+                        // 5. Cập nhật số lượng đã đặt của ca trực (Max 8 người)
+                        $newBooked = $currentBooked + 1;
+                        $newStatus = ($newBooked >= 8) ? 'FULL' : 'AVAILABLE';
+                        $stmtUpd = $pdo->prepare("UPDATE doctor_schedules SET current_booked = ?, max_patients = 8, status = ? WHERE id = ?");
+                        $stmtUpd->execute([$newBooked, $newStatus, $scheduleId]);
+
+                        $pdo->commit();
+                        $success_code = $appCode;
+                    }
+                }
             }
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
