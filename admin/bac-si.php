@@ -81,8 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header("Location: bac-si.php");
-    exit;
+    redirect("bac-si.php");
 }
 
 $specialties = $pdo->query("SELECT * FROM specialties ORDER BY name ASC")->fetchAll();

@@ -126,3 +126,14 @@ function setFlashMessage($type, $message) {
         'message' => $message
     ];
 }
+
+// Chuyển hướng trang an toàn (Hỗ trợ HTTP header và JavaScript fallback)
+function redirect($url) {
+    if (!headers_sent()) {
+        header("Location: " . $url);
+        exit;
+    }
+    echo '<script>window.location.href=' . json_encode($url) . ';</script>';
+    echo '<noscript><meta http-equiv="refresh" content="0;url=' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '"></noscript>';
+    exit;
+}

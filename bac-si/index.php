@@ -19,8 +19,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_appointment') {
         $stmtConf = $pdo->prepare("UPDATE appointments SET status = 'CONFIRMED' WHERE id = ? AND doctor_id = ?");
         $stmtConf->execute([$appId, $doctorId]);
         setFlashMessage('success', "Đã duyệt tiếp nhận lịch hẹn khám của bệnh nhân thành công!");
-        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
-        exit;
+        redirect("index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
     }
 }
 
@@ -30,8 +29,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'start_examination') {
     if ($appId) {
         $stmtStart = $pdo->prepare("UPDATE appointments SET status = 'IN_PROGRESS' WHERE id = ? AND doctor_id = ?");
         $stmtStart->execute([$appId, $doctorId]);
-        header("Location: kham-benh.php?id=" . $appId);
-        exit;
+        redirect("kham-benh.php?id=" . $appId);
     }
 }
 
@@ -43,8 +41,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'save_reminder') {
         $stmtRem = $pdo->prepare("UPDATE appointments SET doctor_reminder = ? WHERE id = ? AND doctor_id = ?");
         $stmtRem->execute([$reminder, $appId, $doctorId]);
         setFlashMessage('success', "Đã lưu và gửi lời nhắc nhở tới bệnh nhân thành công!");
-        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
-        exit;
+        redirect("index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
     }
 }
 
@@ -66,8 +63,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'cancel_appointment') {
         }
 
         setFlashMessage('warning', "Đã hủy ca hẹn và giải phóng chỗ trống cho ca trực!");
-        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
-        exit;
+        redirect("index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
     }
 }
 
@@ -79,8 +75,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'toggle_payment') {
         $stmtPay = $pdo->prepare("UPDATE appointments SET payment_status = ?, payment_method = 'CASH' WHERE id = ? AND doctor_id = ?");
         $stmtPay->execute([$newStatus, $appId, $doctorId]);
         setFlashMessage('success', "Đã cập nhật trạng thái thanh toán thành công!");
-        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
-        exit;
+        redirect("index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
     }
 }
 

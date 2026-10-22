@@ -16,8 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("DELETE FROM feedback WHERE id = ?")->execute([$fId]);
         setFlashMessage('success', "Đã xóa thư phản hồi!");
     }
-    header("Location: phan-hoi.php");
-    exit;
+    redirect("phan-hoi.php");
 }
 
 $feedbacks = $pdo->query("SELECT * FROM feedback ORDER BY created_at DESC")->fetchAll();

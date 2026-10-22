@@ -26,8 +26,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'cancel_appointment') {
             $pdo->prepare("UPDATE doctor_schedules SET current_booked = GREATEST(current_booked - 1, 0), status = 'AVAILABLE' WHERE id = ?")->execute([$appToCancel['schedule_id']]);
             $pdo->commit();
             setFlashMessage('success', "Đã hủy lịch khám mã {$cancelCode} thành công!");
-            header("Location: tra-cuu.php?code=" . urlencode($cancelCode));
-            exit;
+            redirect("tra-cuu.php?code=" . urlencode($cancelCode));
         } else {
             setFlashMessage('error', "Không thể hủy lịch khám đã tiếp nhận hoặc đã hoàn thành!");
         }

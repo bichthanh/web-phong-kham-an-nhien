@@ -5,9 +5,8 @@
  * Nhóm 12 - Lớp 74DCTT26 - ĐH Công nghệ Giao thông Vận tải
  */
 
-if (ob_get_level() === 0) {
-    ob_start();
-}
+// Luôn kích hoạt bộ đệm đầu ra (Output Buffering) để ngăn chặn lỗi Headers Already Sent
+ob_start();
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

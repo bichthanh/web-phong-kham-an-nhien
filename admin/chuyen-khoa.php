@@ -51,8 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header("Location: chuyen-khoa.php");
-    exit;
+    redirect("chuyen-khoa.php");
 }
 
 $sql = "SELECT s.*, COUNT(d.id) as doc_count 

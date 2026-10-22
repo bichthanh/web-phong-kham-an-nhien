@@ -52,8 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header("Location: lich-lam-viec.php?doctor_id=" . ($filterDoc ?: '') . "&date=" . urlencode($filterDate));
-    exit;
+    redirect("lich-lam-viec.php?doctor_id=" . ($filterDoc ?: '') . "&date=" . urlencode($filterDate));
 }
 
 // Lấy danh sách bác sĩ

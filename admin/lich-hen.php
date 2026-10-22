@@ -1,13 +1,11 @@
 <?php
-$page_title = "Quản lý và theo dõi lịch hẹn";
-$activeNav = 'lich_hen';
-require_once __DIR__ . '/../includes/admin_header.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/auth.php';
 
-$filterStatus = sanitizeInput($_GET['status'] ?? '');
-$search = sanitizeInput($_GET['search'] ?? '');
-$filterDate = sanitizeInput($_GET['date'] ?? '');
+requireAdmin();
 
-// XỬ LÝ CÁC THAO TÁC TRÊN LỊCH HẸN
+// XỬ LÝ CÁC THAO TÁC TRÊN LỊCH HẸN (POST TRƯỚC KHI XUẤT HTML)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $appId = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
@@ -35,10 +33,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM appointments WHERE id = ?")->execute([$appId]);
             setFlashMessage('success', "Đã xóa lịch hẹn khỏi hệ thống!");
         }
-        header("Location: lich-hen.php");
-        exit;
+        redirect("lich-hen.php");
     }
 }
+
+$page_title = "Quản lý và theo dõi lịch hẹn";
+$activeNav = 'lich_hen';
+require_once __DIR__ . '/../includes/admin_header.php';
+
+$filterStatus = sanitizeInput($_GET['status'] ?? '');
+$search = sanitizeInput($_GET['search'] ?? '');
+$filterDate = sanitizeInput($_GET['date'] ?? '');
 
 // Xây dựng câu truy vấn
 $whereClauses = ["1=1"];

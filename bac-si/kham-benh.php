@@ -38,8 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmtPay = $pdo->prepare("UPDATE appointments SET payment_status = ?, payment_method = ? WHERE id = ? AND doctor_id = ?");
     $stmtPay->execute([$newPayStatus, $newPayMethod, $appId, $currentDoctor['id']]);
     setFlashMessage('success', "Đã cập nhật trạng thái thanh toán thành công!");
-    header("Location: kham-benh.php?id=" . $appId);
-    exit;
+    redirect("kham-benh.php?id=" . $appId);
 }
 
 // XỬ LÝ LƯU ĐƠN THUỐC & HOÀN TẤT CA KHÁM TRÊN WEB
@@ -97,8 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             $pdo->commit();
             setFlashMessage('success', "Đã hoàn tất ca khám, cập nhật tiền thuốc (" . number_format($medicineFee, 0, ',', '.') . " đ) và lưu trạng thái thanh toán thành công!");
-            header("Location: index.php");
-            exit;
+            redirect("index.php");
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $error_msg = "Lỗi khi lưu bệnh án: " . $e->getMessage();

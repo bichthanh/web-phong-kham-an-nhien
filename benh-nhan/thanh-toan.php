@@ -15,8 +15,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_payment') {
         $stmtPay = $pdo->prepare("UPDATE appointments SET payment_status = 'PAID', payment_method = ? WHERE id = ? AND (patient_id = ? OR patient_phone = ?)");
         $stmtPay->execute([$payMethod, $appId, $userId, $userPhone]);
         setFlashMessage('success', 'Xác nhận thanh toán thành công! Hóa đơn điện tử đã được phát hành.');
-        header("Location: thanh-toan.php");
-        exit;
+        redirect("thanh-toan.php");
     }
 }
 

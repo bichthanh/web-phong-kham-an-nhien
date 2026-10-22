@@ -50,8 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlashMessage('success', "Đã xóa tài khoản khỏi hệ thống!");
         }
     }
-    header("Location: tai-khoan.php");
-    exit;
+    redirect("tai-khoan.php");
 }
 
 $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll();

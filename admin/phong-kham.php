@@ -25,8 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlashMessage('success', "Đã xóa phòng khám khỏi hệ thống!");
         }
     }
-    header("Location: phong-kham.php");
-    exit;
+    redirect("phong-kham.php");
 }
 
 $specialties = $pdo->query("SELECT * FROM specialties ORDER BY name ASC")->fetchAll();

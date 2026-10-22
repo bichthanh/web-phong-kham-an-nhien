@@ -28,8 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlashMessage('success', "Đã xóa bài viết thành công!");
         }
     }
-    header("Location: bai-viet.php");
-    exit;
+    redirect("bai-viet.php");
 }
 
 $posts = $pdo->query("SELECT * FROM posts ORDER BY created_at DESC")->fetchAll();
