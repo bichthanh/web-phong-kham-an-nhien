@@ -17,6 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newStatus = sanitizeInput($_POST['status'] ?? 'CONFIRMED');
             $pdo->prepare("UPDATE appointments SET status = ? WHERE id = ?")->execute([$newStatus, $appId]);
             setFlashMessage('success', "Đã cập nhật trạng thái lịch hẹn thành '{$newStatus}'!");
+        } elseif ($action === 'mark_paid') {
+            $pdo->prepare("UPDATE appointments SET payment_status = 'PAID', payment_method = 'CASH' WHERE id = ?")->execute([$appId]);
+            setFlashMessage('success', "Đã xác nhận thu viện phí tại quầy thành công!");
         } elseif ($action === 'change_schedule') {
             // UC-AD-05 Extend: Đổi sang bác sĩ hoặc ca trực khác khi phát sinh xung đột
             $newDocId = filter_input(INPUT_POST, 'new_doctor_id', FILTER_VALIDATE_INT);
@@ -136,13 +139,14 @@ $flash = getFlashMessage();
                         <th>Ngày & Giờ</th>
                         <th>Phòng Khám</th>
                         <th>Trạng Thái</th>
+                        <th>Thanh Toán</th>
                         <th style="text-align:right;">Thao Tác Nghiệp Vụ</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($appointments)): ?>
                         <tr>
-                            <td colspan="7" style="text-align:center;padding:40px;color:#94A3B8;">
+                            <td colspan="8" style="text-align:center;padding:40px;color:#94A3B8;">
                                 Không có lịch hẹn nào khớp với bộ lọc.
                             </td>
                         </tr>
@@ -167,14 +171,31 @@ $flash = getFlashMessage();
                             </td>
                             <td><span class="badge badge-purple"><?= htmlspecialchars($a['clinic_room']) ?></span></td>
                             <td><?= getStatusBadge($a['status']) ?></td>
+                            <td>
+                                <div><?= getPaymentBadge($a['payment_status']) ?></div>
+                                <div style="font-size:12px;color:#DC2626;font-weight:700;margin-top:4px;">
+                                    <?= formatMoney($a['amount']) ?>
+                                </div>
+                            </td>
                             <td style="text-align:right;white-space:nowrap;">
+                                <?php if ($a['payment_status'] !== 'PAID'): ?>
+                                    <!-- Thu tiền tại quầy -->
+                                    <form method="POST" style="display:inline;">
+                                        <input type="hidden" name="action" value="mark_paid">
+                                        <input type="hidden" name="appointment_id" value="<?= $a['id'] ?>">
+                                        <button type="submit" class="btn btn-sm btn-success" title="Xác nhận thu tiền tại quầy">
+                                            <i class="fa-solid fa-cash-register"></i> Thu tiền
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+
                                 <?php if ($a['status'] === 'PENDING'): ?>
                                     <!-- Duyệt xác nhận -->
                                     <form method="POST" style="display:inline;">
                                         <input type="hidden" name="action" value="update_status">
                                         <input type="hidden" name="appointment_id" value="<?= $a['id'] ?>">
                                         <input type="hidden" name="status" value="CONFIRMED">
-                                        <button type="submit" class="btn btn-sm btn-success" title="Xác nhận duyệt">
+                                        <button type="submit" class="btn btn-sm btn-info" title="Xác nhận duyệt">
                                             <i class="fa-solid fa-check"></i> Duyệt
                                         </button>
                                     </form>

@@ -71,6 +71,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'cancel_appointment') {
     }
 }
 
+// 5. XỬ LÝ NHANH THU TIỀN / TRẠNG THÁI THANH TOÁN TRÊN WEB
+if (isset($_POST['action']) && $_POST['action'] === 'toggle_payment') {
+    $appId = filter_input(INPUT_POST, 'appointment_id', FILTER_VALIDATE_INT);
+    $newStatus = sanitizeInput($_POST['payment_status'] ?? 'PAID');
+    if ($appId) {
+        $stmtPay = $pdo->prepare("UPDATE appointments SET payment_status = ?, payment_method = 'CASH' WHERE id = ? AND doctor_id = ?");
+        $stmtPay->execute([$newStatus, $appId, $doctorId]);
+        setFlashMessage('success', "Đã cập nhật trạng thái thanh toán thành công!");
+        header("Location: index.php" . ($viewAll ? "?view=all" : "?date=" . urlencode($filterDate)));
+        exit;
+    }
+}
+
 // Thống kê các ca khám
 $stmtStat = $pdo->prepare("SELECT 
     COUNT(*) as total,
@@ -193,13 +206,14 @@ $flash = getFlashMessage();
                         <th>Thời Gian Khám</th>
                         <th>Triệu Chứng & Lời Nhắc Bác Sĩ</th>
                         <th>Trạng Thái</th>
+                        <th>Thanh Toán</th>
                         <th style="text-align:right;min-width:200px;">Thao Tác Trực Tiếp Trên Web</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($appointments)): ?>
                         <tr>
-                            <td colspan="8" style="text-align:center;padding:50px 20px;color:#94A3B8;">
+                            <td colspan="9" style="text-align:center;padding:50px 20px;color:#94A3B8;">
                                 <i class="fa-regular fa-calendar-check fa-3x" style="margin-bottom:12px;display:block;color:#CBD5E1;"></i>
                                 Không có ca khám nào cần xử lý trong thời gian này.
                             </td>
@@ -250,6 +264,12 @@ $flash = getFlashMessage();
                             <td>
                                 <?= getStatusBadge($app['status']) ?>
                             </td>
+                            <td>
+                                <div><?= getPaymentBadge($app['payment_status']) ?></div>
+                                <div style="font-size:12px;color:#DC2626;font-weight:700;margin-top:4px;">
+                                    <?= formatMoney($app['amount']) ?>
+                                </div>
+                            </td>
                             <td style="text-align:right;white-space:nowrap;">
                                 <div style="display:inline-flex;gap:6px;align-items:center;">
                                     
@@ -279,8 +299,19 @@ $flash = getFlashMessage();
                                         </a>
                                     <?php elseif ($app['status'] === 'COMPLETED'): ?>
                                         <a href="kham-benh.php?id=<?= $app['id'] ?>" class="btn btn-sm btn-outline-primary" title="Xem lại đơn thuốc đã kê">
-                                            <i class="fa-solid fa-file-prescription"></i> Xem đơn thuốc
+                                            <i class="fa-solid fa-file-prescription"></i> Xem đơn
                                         </a>
+
+                                        <?php if ($app['payment_status'] !== 'PAID'): ?>
+                                            <form method="POST" style="margin:0;display:inline;">
+                                                <input type="hidden" name="action" value="toggle_payment">
+                                                <input type="hidden" name="appointment_id" value="<?= $app['id'] ?>">
+                                                <input type="hidden" name="payment_status" value="PAID">
+                                                <button type="submit" class="btn btn-sm btn-success" title="Xác nhận đã thu tiền ca này">
+                                                    <i class="fa-solid fa-cash-register"></i> Thu tiền
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     <?php endif; ?>
 
                                     <!-- NÚT 3: NHẮC NHỞ BỆNH NHÂN TRÊN WEB (MODAL) -->

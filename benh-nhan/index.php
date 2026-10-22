@@ -113,7 +113,10 @@ $flash = getFlashMessage();
                                 <?= getStatusBadge($a['status']) ?>
                             </td>
                             <td>
-                                <?= getPaymentBadge($a['payment_status']) ?>
+                                <div><?= getPaymentBadge($a['payment_status']) ?></div>
+                                <div style="font-size:12px;color:#DC2626;font-weight:700;margin-top:4px;">
+                                    <?= formatMoney($a['amount']) ?>
+                                </div>
                             </td>
                             <td style="text-align:right;white-space:nowrap;">
                                 <a href="<?= BASE_URL ?>/tra-cuu.php?code=<?= urlencode($a['appointment_code']) ?>" class="btn btn-sm btn-outline-primary" title="Xem chi tiết">

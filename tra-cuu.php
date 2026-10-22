@@ -36,7 +36,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'cancel_appointment') {
 
 if ($search_query) {
     $searched = true;
-    $sql = "SELECT a.*, d.full_name as doctor_name, d.degree as doctor_degree, 
+    $sql = "SELECT a.*, d.full_name as doctor_name, d.degree as doctor_degree, d.consultation_fee,
                    d.clinic_room, s.name as specialty_name, ds.session_name
             FROM appointments a
             JOIN doctors d ON a.doctor_id = d.id
@@ -250,6 +250,44 @@ $flash = getFlashMessage();
                                             <strong style="font-size:15px;"><?= formatDate($pres['re_examination_date']) ?></strong>
                                         </div>
                                     <?php endif; ?>
+
+                                    <!-- CHI PHÍ & TÌNH TRẠNG THANH TOÁN VIỆN PHÍ -->
+                                    <div style="margin:20px 0;padding:16px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:8px;">
+                                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+                                            <strong style="font-size:14px;color:#0F172A;text-transform:uppercase;">
+                                                <i class="fa-solid fa-receipt" style="color:var(--primary);"></i> Chi phí & Tình trạng thanh toán:
+                                            </strong>
+                                            <div>
+                                                <?= getPaymentBadge($app['payment_status']) ?>
+                                            </div>
+                                        </div>
+                                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;font-size:13.5px;">
+                                            <div>
+                                                <span style="color:#64748B;">Phí khám chuyên khoa:</span><br>
+                                                <strong><?= formatMoney($app['consultation_fee'] ?? 200000) ?></strong>
+                                            </div>
+                                            <div>
+                                                <span style="color:#64748B;">Tiền thuốc kê đơn:</span><br>
+                                                <strong style="color:#DC2626;"><?= formatMoney($pres['medicine_fee'] ?? 0) ?></strong>
+                                            </div>
+                                            <div>
+                                                <span style="color:#64748B;">Tổng thanh toán viện phí:</span><br>
+                                                <strong style="color:var(--primary);font-size:16px;"><?= formatMoney($app['amount']) ?></strong>
+                                            </div>
+                                        </div>
+
+                                        <?php if ($app['payment_status'] !== 'PAID'): ?>
+                                            <div style="margin-top:14px;padding:12px 14px;background:#FFFBEB;border-left:4px solid #F59E0B;border-radius:6px;font-size:13.5px;color:#92400E;line-height:1.5;">
+                                                <i class="fa-solid fa-cash-register"></i> <strong>Hướng dẫn thanh toán tại quầy:</strong><br>
+                                                Quý khách vui lòng đến <strong>Quầy thu ngân (Tầng 1)</strong> và đọc Mã phiếu khám <strong><?= htmlspecialchars($app['appointment_code']) ?></strong> để thanh toán số tiền <strong><?= formatMoney($app['amount']) ?></strong> trước khi qua Quầy Dược nhận thuốc.
+                                            </div>
+                                        <?php else: ?>
+                                            <div style="margin-top:14px;padding:12px 14px;background:#ECFDF5;border-left:4px solid #10B981;border-radius:6px;font-size:13.5px;color:#065F46;line-height:1.5;">
+                                                <i class="fa-solid fa-circle-check"></i> <strong>Đã hoàn tất thanh toán:</strong><br>
+                                                Toàn bộ chi phí khám và tiền thuốc đã được thanh toán thành công. Quý khách vui lòng mang phiếu này đến <strong>Quầy Dược phòng khám An Nhiên</strong> để nhận thuốc đã được cấp phát.
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
 
                                     <div style="display:flex;justify-content:space-between;margin-top:30px;padding-top:20px;border-top:1px dashed #CBD5E1;">
                                         <div style="font-size:12px;color:#94A3B8;">

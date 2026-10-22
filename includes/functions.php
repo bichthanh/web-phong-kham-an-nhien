@@ -95,9 +95,10 @@ function getStatusText($status) {
 function getPaymentBadge($status) {
     switch ($status) {
         case 'PAID':
-            return '<span class="badge badge-success"><i class="fa-solid fa-receipt"></i> Đã thanh toán</span>';
+            return '<span class="badge badge-success" style="background:#DCFCE7;color:#15803D;border:1px solid #86EFAC;"><i class="fa-solid fa-circle-check"></i> Đã thanh toán</span>';
         case 'UNPAID':
-            return '<span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Chưa thanh toán</span>';
+        case 'AT_CLINIC':
+            return '<span class="badge badge-warning" style="background:#FEF3C7;color:#B45309;border:1px solid #FCD34D;"><i class="fa-solid fa-cash-register"></i> Thanh toán tại quầy</span>';
         default:
             return '<span class="badge badge-secondary">' . htmlspecialchars($status) . '</span>';
     }

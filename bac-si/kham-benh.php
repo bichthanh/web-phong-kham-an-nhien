@@ -10,7 +10,7 @@ if (!$appId) {
 }
 
 // Lấy thông tin lịch hẹn
-$stmt = $pdo->prepare("SELECT a.*, ds.session_name, s.name as specialty_name 
+$stmt = $pdo->prepare("SELECT a.*, ds.session_name, s.name as specialty_name, d.consultation_fee 
                        FROM appointments a 
                        JOIN doctors d ON a.doctor_id = d.id 
                        JOIN specialties s ON d.specialty_id = s.id 
@@ -31,11 +31,27 @@ $existingMedicines = $prescription ? json_decode($prescription['medicine_list'],
 
 $error_msg = null;
 
+// XỬ LÝ CHUYỂN NHANH TRẠNG THÁI THANH TOÁN (KHI ĐÃ HOÀN THÀNH)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'quick_update_payment') {
+    $newPayStatus = ($_POST['payment_status'] === 'PAID') ? 'PAID' : 'UNPAID';
+    $newPayMethod = ($newPayStatus === 'PAID') ? 'CASH' : 'CASH';
+    $stmtPay = $pdo->prepare("UPDATE appointments SET payment_status = ?, payment_method = ? WHERE id = ? AND doctor_id = ?");
+    $stmtPay->execute([$newPayStatus, $newPayMethod, $appId, $currentDoctor['id']]);
+    setFlashMessage('success', "Đã cập nhật trạng thái thanh toán thành công!");
+    header("Location: kham-benh.php?id=" . $appId);
+    exit;
+}
+
 // XỬ LÝ LƯU ĐƠN THUỐC & HOÀN TẤT CA KHÁM TRÊN WEB
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_prescription') {
     $diagnosis = sanitizeInput($_POST['diagnosis'] ?? '');
     $doctorNotes = sanitizeInput($_POST['doctor_notes'] ?? '');
     $reExamDate = !empty($_POST['re_examination_date']) ? sanitizeInput($_POST['re_examination_date']) : null;
+    $medicineFee = max(0, (float)($_POST['medicine_fee'] ?? 0));
+    $paymentStatus = (isset($_POST['payment_status']) && $_POST['payment_status'] === 'PAID') ? 'PAID' : 'UNPAID';
+    $consultFee = (float)($appointment['consultation_fee'] ?? 200000);
+    $totalAmount = $consultFee + $medicineFee;
+    $paymentMethod = ($paymentStatus === 'PAID') ? 'CASH' : ($appointment['payment_method'] ?? 'CASH');
 
     $medNames = $_POST['med_name'] ?? [];
     $medUnits = $_POST['med_unit'] ?? [];
@@ -67,20 +83,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             if ($prescription) {
                 // Cập nhật đơn thuốc cũ
-                $stmtU = $pdo->prepare("UPDATE prescriptions SET diagnosis = ?, medicine_list = ?, doctor_notes = ?, re_examination_date = ? WHERE appointment_id = ?");
-                $stmtU->execute([$diagnosis, $medJson, $doctorNotes, $reExamDate, $appId]);
+                $stmtU = $pdo->prepare("UPDATE prescriptions SET diagnosis = ?, medicine_list = ?, doctor_notes = ?, re_examination_date = ?, medicine_fee = ? WHERE appointment_id = ?");
+                $stmtU->execute([$diagnosis, $medJson, $doctorNotes, $reExamDate, $medicineFee, $appId]);
             } else {
                 // Tạo mới đơn thuốc
-                $stmtI = $pdo->prepare("INSERT INTO prescriptions (appointment_id, diagnosis, medicine_list, doctor_notes, re_examination_date) VALUES (?, ?, ?, ?, ?)");
-                $stmtI->execute([$appId, $diagnosis, $medJson, $doctorNotes, $reExamDate]);
+                $stmtI = $pdo->prepare("INSERT INTO prescriptions (appointment_id, diagnosis, medicine_list, doctor_notes, re_examination_date, medicine_fee) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmtI->execute([$appId, $diagnosis, $medJson, $doctorNotes, $reExamDate, $medicineFee]);
             }
 
-            // Chuyển trạng thái lịch hẹn sang COMPLETED và cập nhật lời dặn dò của bác sĩ
-            $stmtC = $pdo->prepare("UPDATE appointments SET status = 'COMPLETED', doctor_reminder = ? WHERE id = ?");
-            $stmtC->execute([$doctorNotes, $appId]);
+            // Chuyển trạng thái lịch hẹn sang COMPLETED, cập nhật lời dặn dò của bác sĩ, trạng thái thanh toán và tổng tiền
+            $stmtC = $pdo->prepare("UPDATE appointments SET status = 'COMPLETED', doctor_reminder = ?, payment_status = ?, payment_method = ?, amount = ? WHERE id = ?");
+            $stmtC->execute([$doctorNotes, $paymentStatus, $paymentMethod, $totalAmount, $appId]);
 
             $pdo->commit();
-            setFlashMessage('success', "Đã hoàn tất ca khám và lưu đơn thuốc điện tử cho bệnh nhân {$appointment['patient_name']} thành công!");
+            setFlashMessage('success', "Đã hoàn tất ca khám, cập nhật tiền thuốc (" . number_format($medicineFee, 0, ',', '.') . " đ) và lưu trạng thái thanh toán thành công!");
             header("Location: index.php");
             exit;
         } catch (Exception $e) {
@@ -101,9 +117,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             Bệnh nhân: <strong style="color:#0F172A;"><?= htmlspecialchars($appointment['patient_name']) ?></strong> • Mã phiếu: <span class="badge badge-info"><?= htmlspecialchars($appointment['appointment_code']) ?></span>
         </p>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <a href="index.php" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> Về danh sách bệnh nhân</a>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <a href="index.php" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> Về danh sách</a>
         <?php if ($appointment['status'] === 'COMPLETED'): ?>
+            <?php if ($appointment['payment_status'] !== 'PAID'): ?>
+                <form method="POST" style="margin:0;display:inline;">
+                    <input type="hidden" name="action" value="quick_update_payment">
+                    <input type="hidden" name="payment_status" value="PAID">
+                    <button type="submit" class="btn btn-success" title="Bệnh nhân đã nộp tiền mặt hoặc chuyển khoản">
+                        <i class="fa-solid fa-cash-register"></i> Đánh dấu: Đã thanh toán
+                    </button>
+                </form>
+            <?php else: ?>
+                <form method="POST" style="margin:0;display:inline;">
+                    <input type="hidden" name="action" value="quick_update_payment">
+                    <input type="hidden" name="payment_status" value="UNPAID">
+                    <button type="submit" class="btn btn-outline" style="border-color:#F59E0B;color:#D97706;" title="Chuyển sang trạng thái thu tiền tại quầy">
+                        <i class="fa-solid fa-rotate-left"></i> Chuyển sang Tại quầy
+                    </button>
+                </form>
+            <?php endif; ?>
             <button type="button" onclick="window.print()" class="btn btn-primary">
                 <i class="fa-solid fa-print"></i> In Đơn Thuốc
             </button>
@@ -121,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <!-- THÔNG TIN BỆNH NHÂN ĐANG KHÁM -->
 <div class="card" style="margin-bottom:24px;border-left:4px solid var(--primary);">
     <div class="card-body" style="padding:20px;">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:16px;">
             <div>
                 <span style="font-size:12px;color:#64748B;display:block;">Họ và tên bệnh nhân:</span>
                 <strong style="font-size:16px;color:#0F172A;"><?= htmlspecialchars($appointment['patient_name']) ?></strong>
@@ -137,6 +170,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div>
                 <span style="font-size:12px;color:#64748B;display:block;">Khung giờ hẹn khám:</span>
                 <strong style="font-size:14px;color:#0D9488;"><?= formatTime($appointment['appointment_time']) ?> (Ngày <?= formatDate($appointment['appointment_date']) ?>)</strong>
+            </div>
+            <div>
+                <span style="font-size:12px;color:#64748B;display:block;">Trạng thái thanh toán:</span>
+                <div style="margin-top:2px;"><?= getPaymentBadge($appointment['payment_status']) ?></div>
             </div>
         </div>
 
@@ -256,10 +293,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
             </div>
 
+            <!-- 3. CHI PHÍ TIỀN THUỐC & TRẠNG THÁI THANH TOÁN -->
+            <div style="background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;padding:20px;margin:24px 0;">
+                <h4 style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                    <i class="fa-solid fa-cash-register" style="color:var(--primary);"></i>
+                    3. Chi phí tiền thuốc & Tình trạng thanh toán viện phí
+                </h4>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:20px;align-items:start;">
+                    <!-- Cột Tiền thuốc -->
+                    <div>
+                        <label class="form-label" style="font-weight:600;font-size:13.5px;color:#334155;">
+                            Tiền thuốc kê đơn (VNĐ):
+                        </label>
+                        <div style="position:relative;">
+                            <input type="number" name="medicine_fee" id="medicine_fee" class="form-control" 
+                                   value="<?= (float)($prescription['medicine_fee'] ?? 150000) ?>" 
+                                   min="0" step="5000" style="padding-right:45px;font-weight:700;font-size:16px;color:#DC2626;" oninput="recalcTotalBill()">
+                            <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-weight:600;color:#64748B;font-size:13px;">VNĐ</span>
+                        </div>
+                        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                            <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#FFF;border:1px solid #CBD5E1;" onclick="setMedFee(0)">0 đ (Miễn phí)</button>
+                            <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#FFF;border:1px solid #CBD5E1;" onclick="setMedFee(100000)">100.000 đ</button>
+                            <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#FFF;border:1px solid #CBD5E1;" onclick="setMedFee(150000)">150.000 đ</button>
+                            <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#FFF;border:1px solid #CBD5E1;" onclick="setMedFee(250000)">250.000 đ</button>
+                            <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#FFF;border:1px solid #CBD5E1;" onclick="setMedFee(350000)">350.000 đ</button>
+                        </div>
+                    </div>
+
+                    <!-- Cột Trạng thái thanh toán (Thanh toán tại quầy vs Đã thanh toán) -->
+                    <div>
+                        <label class="form-label" style="font-weight:600;font-size:13.5px;color:#334155;">
+                            Tình trạng thanh toán:
+                        </label>
+                        <div style="display:flex;flex-direction:column;gap:10px;margin-top:2px;">
+                            <label id="label_pay_unpaid" style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#FFF;border:2px solid <?= ($appointment['payment_status'] !== 'PAID') ? '#F59E0B' : '#E2E8F0' ?>;border-radius:8px;cursor:pointer;">
+                                <input type="radio" name="payment_status" value="UNPAID" <?= ($appointment['payment_status'] !== 'PAID') ? 'checked' : '' ?> onchange="updatePayBorder()" style="margin-top:4px;">
+                                <div>
+                                    <span class="badge badge-warning" style="background:#FEF3C7;color:#B45309;font-size:12px;font-weight:700;"><i class="fa-solid fa-cash-register"></i> Thanh toán tại quầy</span>
+                                    <span style="display:block;font-size:12px;color:#64748B;margin-top:4px;line-height:1.4;">Bệnh nhân ra quầy thu ngân tầng 1 nộp viện phí & lấy thuốc</span>
+                                </div>
+                            </label>
+
+                            <label id="label_pay_paid" style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#FFF;border:2px solid <?= ($appointment['payment_status'] === 'PAID') ? '#10B981' : '#E2E8F0' ?>;border-radius:8px;cursor:pointer;">
+                                <input type="radio" name="payment_status" value="PAID" <?= ($appointment['payment_status'] === 'PAID') ? 'checked' : '' ?> onchange="updatePayBorder()" style="margin-top:4px;">
+                                <div>
+                                    <span class="badge badge-success" style="background:#DCFCE7;color:#15803D;font-size:12px;font-weight:700;"><i class="fa-solid fa-circle-check"></i> Đã thanh toán</span>
+                                    <span style="display:block;font-size:12px;color:#64748B;margin-top:4px;line-height:1.4;">Đã thu tiền mặt hoặc quét mã QR chuyển khoản tại buồng khám</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Bảng tổng hợp viện phí -->
+                    <div style="background:#FFF;border-radius:8px;padding:16px;border:1px solid #E2E8F0;">
+                        <span style="font-size:12px;text-transform:uppercase;color:#64748B;font-weight:700;display:block;margin-bottom:10px;">
+                            <i class="fa-solid fa-calculator"></i> Bảng tính tổng viện phí:
+                        </span>
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;color:#475569;margin-bottom:6px;">
+                            <span>Phí khám chuyên khoa:</span>
+                            <strong id="disp_consult_fee" data-fee="<?= (float)($appointment['consultation_fee'] ?? 200000) ?>"><?= formatMoney($appointment['consultation_fee'] ?? 200000) ?></strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;color:#475569;margin-bottom:6px;">
+                            <span>Tiền thuốc kê đơn:</span>
+                            <strong id="disp_medicine_fee" style="color:#DC2626;">0 đ</strong>
+                        </div>
+                        <div style="border-top:1px dashed #CBD5E1;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-size:14.5px;color:#0F172A;font-weight:700;">
+                            <span>Tổng thanh toán:</span>
+                            <strong id="disp_total_fee" style="color:var(--primary);font-size:17px;">0 đ</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 4. LỜI DẶN DÒ Y KHOA & NHẮC NHỞ BỆNH NHÂN -->
             <div class="form-group" style="margin-top:24px;">
                 <label class="form-label" style="font-size:15px;font-weight:700;color:#0F172A;">
-                    3. Lời dặn dò y khoa & Nhắc nhở người bệnh (Sẽ hiển thị cho bệnh nhân xem)
+                    4. Lời dặn dò y khoa & Nhắc nhở người bệnh (Sẽ hiển thị cho bệnh nhân xem)
                 </label>
                 <textarea name="doctor_notes" class="form-control" rows="3" 
                           placeholder="Ví dụ: Ăn giảm muối, hạn chế dầu mỡ động vật, uống đủ 2 lít nước/ngày, tập thể dục nhẹ nhàng 30 phút mỗi ngày. Tái khám ngay nếu có dấu hiệu đau ngực dữ dội..."><?= htmlspecialchars($prescription['doctor_notes'] ?? ($appointment['doctor_reminder'] ?? '')) ?></textarea>
@@ -268,7 +378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <!-- 5. HẸN NGÀY TÁI KHÁM -->
             <div class="form-group" style="max-width:320px;margin-top:20px;">
                 <label class="form-label" style="font-size:15px;font-weight:700;color:#0F172A;">
-                    4. Hẹn ngày tái khám (nếu cần)
+                    5. Hẹn ngày tái khám (nếu cần)
                 </label>
                 <input type="date" name="re_examination_date" class="form-control" 
                        value="<?= htmlspecialchars($prescription['re_examination_date'] ?? '') ?>" min="<?= date('Y-m-d') ?>">
@@ -285,6 +395,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 </div>
 
 <script>
+function setMedFee(val) {
+    const input = document.getElementById('medicine_fee');
+    if (input) {
+        input.value = val;
+        recalcTotalBill();
+    }
+}
+
+function recalcTotalBill() {
+    const consultElem = document.getElementById('disp_consult_fee');
+    const medInput = document.getElementById('medicine_fee');
+    const dispMed = document.getElementById('disp_medicine_fee');
+    const dispTotal = document.getElementById('disp_total_fee');
+
+    if (!consultElem || !medInput) return;
+
+    const consultFee = parseFloat(consultElem.getAttribute('data-fee')) || 0;
+    const medFee = Math.max(0, parseFloat(medInput.value) || 0);
+    const total = consultFee + medFee;
+
+    if (dispMed) {
+        dispMed.textContent = medFee.toLocaleString('vi-VN') + ' đ';
+    }
+    if (dispTotal) {
+        dispTotal.textContent = total.toLocaleString('vi-VN') + ' đ';
+    }
+}
+
+function updatePayBorder() {
+    const radios = document.getElementsByName('payment_status');
+    const labelUnpaid = document.getElementById('label_pay_unpaid');
+    const labelPaid = document.getElementById('label_pay_paid');
+
+    let checkedVal = 'UNPAID';
+    for (let r of radios) {
+        if (r.checked) {
+            checkedVal = r.value;
+            break;
+        }
+    }
+
+    if (checkedVal === 'PAID') {
+        if (labelPaid) labelPaid.style.borderColor = '#10B981';
+        if (labelUnpaid) labelUnpaid.style.borderColor = '#E2E8F0';
+    } else {
+        if (labelUnpaid) labelUnpaid.style.borderColor = '#F59E0B';
+        if (labelPaid) labelPaid.style.borderColor = '#E2E8F0';
+    }
+}
+
 function addQuickMedicine(name, unit, qty, usage) {
     const tbody = document.getElementById('medicine_rows');
     // Nếu dòng đầu tiên đang trống thì điền vào dòng đó
@@ -341,6 +501,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         tbody.querySelectorAll('.remove-med').forEach(btn => attachRemoveBtn(btn));
     }
+
+    recalcTotalBill();
+    updatePayBorder();
 });
 </script>
 

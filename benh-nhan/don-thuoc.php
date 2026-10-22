@@ -7,8 +7,8 @@ $userId = $patUser['id'];
 $userPhone = $patUser['phone'];
 
 // Lấy danh sách đơn thuốc của bệnh nhân
-$sql = "SELECT p.*, a.appointment_code, a.appointment_date, a.patient_name,
-               d.full_name as doctor_name, d.degree as doctor_degree, s.name as specialty_name
+$sql = "SELECT p.*, a.appointment_code, a.appointment_date, a.patient_name, a.payment_status, a.amount,
+               d.full_name as doctor_name, d.degree as doctor_degree, d.consultation_fee, s.name as specialty_name
         FROM prescriptions p
         JOIN appointments a ON p.appointment_id = a.id
         JOIN doctors d ON a.doctor_id = d.id
@@ -39,13 +39,14 @@ $prescriptions = $stmt->fetchAll();
             $medList = json_decode($p['medicine_list'], true) ?: [];
         ?>
             <div class="card">
-                <div class="card-header" style="background:#F8FAFC;">
+                <div class="card-header" style="background:#F8FAFC;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                     <div>
                         <span style="font-size:13px;color:#64748B;">MÃ PHIẾU HẸN: <strong><?= htmlspecialchars($p['appointment_code']) ?></strong></span>
                         <span style="margin:0 10px;color:#CBD5E1;">•</span>
                         <span style="font-size:13px;color:#64748B;">Ngày kê đơn: <strong><?= formatDate($p['created_at']) ?></strong></span>
                     </div>
-                    <div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <?= getPaymentBadge($p['payment_status']) ?>
                         <a href="<?= BASE_URL ?>/tra-cuu.php?code=<?= urlencode($p['appointment_code']) ?>" class="btn btn-sm btn-outline-primary">
                             <i class="fa-solid fa-print"></i> Xem & In đơn đầy đủ
                         </a>
@@ -84,6 +85,42 @@ $prescriptions = $stmt->fetchAll();
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- THÔNG TIN THANH TOÁN & HƯỚNG DẪN NHẬN THUỐC -->
+                    <div style="margin-top:20px;padding:16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+                            <span style="font-size:13px;font-weight:700;color:#0F172A;text-transform:uppercase;">
+                                <i class="fa-solid fa-receipt" style="color:var(--primary);"></i> Chi phí thanh toán ca khám:
+                            </span>
+                            <div>
+                                <?= getPaymentBadge($p['payment_status']) ?>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;font-size:13.5px;">
+                            <div>
+                                <span style="color:#64748B;">Phí khám:</span> 
+                                <strong><?= formatMoney($p['consultation_fee'] ?? 200000) ?></strong>
+                            </div>
+                            <div>
+                                <span style="color:#64748B;">Tiền thuốc:</span> 
+                                <strong style="color:#DC2626;"><?= formatMoney($p['medicine_fee'] ?? 0) ?></strong>
+                            </div>
+                            <div>
+                                <span style="color:#64748B;">Tổng thanh toán:</span> 
+                                <strong style="color:var(--primary);font-size:15px;"><?= formatMoney($p['amount']) ?></strong>
+                            </div>
+                        </div>
+
+                        <?php if ($p['payment_status'] !== 'PAID'): ?>
+                            <div style="margin-top:12px;padding:10px 14px;background:#FFFBEB;border-left:4px solid #F59E0B;border-radius:4px;font-size:13px;color:#92400E;">
+                                <i class="fa-solid fa-cash-register"></i> <strong>Hướng dẫn thanh toán tại quầy:</strong> Quý khách vui lòng đến <strong>Quầy thu ngân (Tầng 1)</strong> và đọc Mã phiếu hẹn <strong><?= htmlspecialchars($p['appointment_code']) ?></strong> để thanh toán số tiền <strong><?= formatMoney($p['amount']) ?></strong> trước khi qua Quầy Dược nhận thuốc.
+                            </div>
+                        <?php else: ?>
+                            <div style="margin-top:12px;padding:10px 14px;background:#ECFDF5;border-left:4px solid #10B981;border-radius:4px;font-size:13px;color:#065F46;">
+                                <i class="fa-solid fa-circle-check"></i> <strong>Đã thanh toán:</strong> Toàn bộ chi phí khám và thuốc đã được thanh toán thành công. Quý khách vui lòng qua <strong>Quầy Dược phòng khám</strong> và xuất trình mã đơn để nhận thuốc.
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <?php if ($p['doctor_notes']): ?>
