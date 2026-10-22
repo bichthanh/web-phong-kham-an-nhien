@@ -25,7 +25,7 @@
                     <h4>Khám & Điều Trị</h4>
                     <ul class="footer-links">
                         <li><a href="<?= BASE_URL ?>/index.php"><i class="fa-solid fa-angle-right"></i> Trang chủ phòng khám</a></li>
-                        <li><a href="<?= BASE_URL ?>/chuyen-khoa.php"><i class="fa-solid fa-angle-right"></i> 8 Chuyên khoa mũi nhọn</a></li>
+                        <li><a href="<?= BASE_URL ?>/chuyen-khoa.php"><i class="fa-solid fa-angle-right"></i> 8 Chuyên khoa</a></li>
                         <li><a href="<?= BASE_URL ?>/bac-si.php"><i class="fa-solid fa-angle-right"></i> Danh sách bác sĩ chuyên khoa</a></li>
                         <li><a href="<?= BASE_URL ?>/dat-lich.php"><i class="fa-solid fa-angle-right"></i> Đặt lịch khám online 3 bước</a></li>
                         <li><a href="<?= BASE_URL ?>/tra-cuu.php"><i class="fa-solid fa-angle-right"></i> Tra cứu phiếu & In đơn thuốc</a></li>

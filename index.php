@@ -43,7 +43,7 @@ $recentPosts = $stmtPosts->fetchAll();
                 <div class="hero-stats">
                     <div class="hero-stat-item">
                         <h3>08+</h3>
-                        <p>Chuyên khoa mũi nhọn</p>
+                        <p>Chuyên khoa</p>
                     </div>
                     <div class="hero-stat-item">
                         <h3>100%</h3>
@@ -117,7 +117,7 @@ $recentPosts = $stmtPosts->fetchAll();
     <div class="container">
         <div class="section-title-wrap">
             <span class="section-tag">Khám chữa bệnh đa khoa</span>
-            <h2 class="section-title">Các Chuyên Khoa Mũi Nhọn</h2>
+            <h2 class="section-title">Các Chuyên Khoa</h2>
             <p class="section-desc">Phòng khám Đa khoa An Nhiên đáp ứng đầy đủ các dịch vụ y tế kỹ thuật cao phục vụ nhân dân Nam Định và các tỉnh lân cận.</p>
         </div>
 
